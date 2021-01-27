@@ -14,7 +14,7 @@ class ForeignKey(Attribute):
                 (True, True): "*",
             }[(self.optional, self.multiple)]
 
-            return f"({card}{self.name}[{self.get_from}])"
+            return f"({card}{self.name}[{self.get_from}.{self.get_by}])"
         else:
             return f">{self.name}"
 
