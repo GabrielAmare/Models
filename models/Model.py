@@ -42,6 +42,19 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         if __db_warns__ is not None:
             Model.__db_warns__ = bool(__db_warns__)
 
+        if not os.path.exists(Model.__dbfp__):
+            N = max(5, max(len(model.__name__) for model in Model.__models__))
+
+            path = os.path.abspath(Model.__dbfp__)
+            print(f"DATABASE(Model)".ljust(10 + N) + " : mkdir {path}")
+            os.mkdir(path)
+
+            for model in Model.__models__:
+                if not model.__dbm__.exists():
+                    path = os.path.abspath(model.__dbm__.filepath())
+                    print(f"DATABASE({model.__name__})".ljust(10 + N) + " : mkdir {path}")
+                    model.__dbm__.mkdir()
+
         if loadall:
             Model.loadall()
 

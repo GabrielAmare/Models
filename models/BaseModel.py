@@ -99,8 +99,6 @@ class BaseModel:
         # register the Model subclass into the subclasses and create their Database folder
         if not abstract:
             cls.__add_model__(cls)
-            if not cls.__dbm__.exists():
-                cls.__dbm__.mkdir()
 
         cls.__attributes__ = Query(safe=True)
         cls.__inherit_attributes__()
