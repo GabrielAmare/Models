@@ -3,6 +3,8 @@ from datetime import datetime, date
 from .utils import Attribute
 from .Model import Model
 
+from .FieldDescriptor import FieldDescriptor
+
 regex_int = re.compile(r'^[0-9]+$')
 regex_float = re.compile(r"^-?([0-9]+\.[0-9]*|\.[0-9]+|inf)$")
 
@@ -107,18 +109,11 @@ class Field(Attribute):
         return model, instance
 
     def __rpy__(self):
-        card = {
-            (False, False): "!",
-            (False, True): "+",
-            (True, False): "?",
-            (True, True): "*",
-        }[(self.optional, self.multiple)]
-
-        return f"{card}{self.name}[{self.type_}]"
+        return self.__descriptor__.to_rpy()
 
     def __init__(self, name: str, type_: str, optional: bool = False, multiple: bool = False, unique: bool = False,
                  values=None, increment=None, range=None, length=None, default=None, encrypt=None,
-                 private: bool = False):
+                 private: bool = False, static: bool = False):
         """
 
         :param type_: The type of the field value (expected as string)
@@ -133,17 +128,36 @@ class Field(Attribute):
         :param private: if True, the field value is filter out from the result of the $.to_dict method
         """
         super().__init__(name)
+
+        self.__descriptor__ = FieldDescriptor(
+            # BASE
+            name=name,
+            type=type_,
+            optional=optional,
+            multiple=multiple,
+            unique=unique,
+            private=private,
+            static=static,
+            # ADDS
+            range=range,
+            length=length,
+            default=default,
+            encrypt=encrypt
+        )
+
         self.type_ = type_
         self.optional = optional
         self.multiple = multiple
         self.unique = unique
-        self.values = values
-        self.increment = increment
+        self.private = private
+        self.static = static
+
         self.range = range
         self.length = (length, length) if isinstance(length, int) else length
         self.default = default
-        self.private = private
         self.encrypt = encrypt
+        self.values = values
+        self.increment = increment
 
     def get(self, instance):
         """
