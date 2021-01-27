@@ -1,4 +1,4 @@
-from models.utils import Query, EventManager
+from .utils import Query, EventManager
 from .DatabaseManager import DatabaseManager
 
 

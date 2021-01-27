@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, date
-from models.utils import Attribute
+from .utils import Attribute
 from .Model import Model
 
 regex_int = re.compile(r'^[0-9]+$')

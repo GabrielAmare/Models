@@ -3,7 +3,7 @@ import os
 import sys
 import shutil
 import datetime
-from models.utils import ConfigError, EventManager, Query
+from .utils import ConfigError, EventManager, Query
 
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights

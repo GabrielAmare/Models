@@ -1,4 +1,4 @@
-from models.utils import Attribute
+from .utils import Attribute
 
 
 class Method(Attribute):

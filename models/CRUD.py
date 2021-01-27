@@ -1,5 +1,5 @@
 import re
-from models.utils import Attribute, Query
+from .utils import Attribute, Query
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
 

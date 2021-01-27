@@ -5,14 +5,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="models-gamare",
-    version="1.0.0",
+    version="1.0.3",
     author="Gabriel Amare",
     author_email="gabriel.amare.31@gmail.com",
     description="Package to help implement complex object structures within your project",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/GabrielAmare/Beans",
-    packages=setuptools.find_packages(),
+    url="https://github.com/GabrielAmare/Models",
+    packages=['models', 'models.utils'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
