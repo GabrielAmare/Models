@@ -32,6 +32,9 @@ class Query:
             else:
                 yield item
 
+    def __len__(self):
+        return len(self.tuple())
+
     def append(self, obj):
         """self.data.append(obj)"""
         self.data.append(obj)
@@ -139,3 +142,6 @@ class Query:
     def safe(self):
         self._safe = True
         return self
+
+    def len(self):
+        return len(self.tuple())
