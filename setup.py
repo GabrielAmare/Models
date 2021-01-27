@@ -9,7 +9,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="models-gamare",
-    version="1.0.5",
+    version="1.0.6",
     author="Gabriel Amare",
     author_email="gabriel.amare.31@gmail.com",
     description="Package to help implement complex object structures within your project",
