@@ -42,3 +42,13 @@ class ForeignKey(Attribute):
         self.optional = optional
         self.multiple = multiple
         self.on_lazy = on_lazy
+
+    def __call__(self, model):
+        result = super().__call__(model)
+
+        def emit_append(owner):
+            Model.__events__.emit(f'{model.__name__}/{getattr(owner, self.get_by).uid}/append/{self.name}', owner)
+
+        Model.__events__.on(f'{self.get_from}/#/create', emit_append)
+
+        return result

@@ -3,7 +3,7 @@ import os
 import sys
 import shutil
 import datetime
-from .utils import ConfigError, EventManager, Query
+from .utils import ConfigError, Query
 
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
@@ -105,13 +105,22 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
         self.__create__(**config)
 
-        self.events = EventManager(piped=self.__class__.events)
         self.__add_instance__(self)
 
     @staticmethod
     def __build_routes__(api):
         for model in Model.__models__:
             model.__api__.build_routes(api=api)
+
+    ####################################################################################################################
+    # EVENTS
+    ####################################################################################################################
+
+    def __emit__(self, name, method, value):
+        return Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/{method}/{name}", value)
+
+    def __on__(self, name, method, callback):
+        return Model.__events__.on(f"{self.__class__.__name__}/{self.uid}/{method}/{name}", callback)
 
     ####################################################################################################################
     # CREATE
@@ -152,6 +161,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
         self.__create_apply__(parsed_config)
 
+        Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/create", self)
+
     ####################################################################################################################
     # UPDATE
     ####################################################################################################################
@@ -189,6 +200,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         self.__update_errors__(config_errors)
 
         self.__update_apply__(parsed_config)
+
+        Model.__events__.emit(f"/{self.__class__.__name__}/{self.uid}/update", self)
 
         return self
 

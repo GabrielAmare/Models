@@ -176,17 +176,17 @@ class Field(Attribute):
         :return:
         """
         instance.__data__[self.name] = value
-        instance.events.emit(f"{self.name}:set", instance, value)
+        instance.__emit__(self.name, "set", value)
 
     def append(self, instance, value):
         assert self.multiple
         instance.__data__[self.name].append(value)
-        instance.events.emit(f"{self.name}:append", instance, value)
+        instance.__emit__(self.name, "append", value)
 
     def remove(self, instance, value):
         assert self.multiple
         instance.__data__[self.name].append(value)
-        instance.events.emit(f"{self.name}:remove", instance, value)
+        instance.__emit__(self.name, "remove", value)
 
     @property
     def model(self):

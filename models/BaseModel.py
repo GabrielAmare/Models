@@ -54,7 +54,7 @@ class BaseModel:
     __dbm__: DatabaseManager
     __delete_mode__ = DeleteMode.ALLOW_HARD
 
-    events = EventManager()
+    __events__ = EventManager
 
     @classmethod
     def __on_delete__(cls, mode=None):
@@ -104,7 +104,6 @@ class BaseModel:
         cls.__inherit_attributes__()
 
         cls.__instances__ = Query(safe=True)
-        cls.events = EventManager(piped=BaseModel.events)
 
     def __getattribute__(self, name: str):
         if name.startswith('__') and name.endswith('__'):
