@@ -10,4 +10,9 @@ from .Field import Field
 from .ForeignKey import ForeignKey
 from .Method import Method
 
-Field("uid", "int", unique=True, default=lambda model: model.__dbm__.max_uid + 1, range=(0, float('inf')))(Model)
+
+def uid_increment(model):
+    return max(model.__dbm__.max_uid, model.__instances__.getattr('uid').max()) + 1
+
+
+Field("uid", "int", unique=True, default=uid_increment, range=(0, float('inf')))(Model)
