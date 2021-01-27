@@ -75,12 +75,26 @@ class FieldParsing:
         return instance
 
 
+import hashlib
+
+
 class Field(Attribute):
     DATABASE = "DATABASE"
     SERVER = "SERVER"
     CLIENT = "CLIENT"
 
     distant = False
+
+    encryptions = {
+        'md5': hashlib.md5,
+        'sha1': hashlib.sha1,
+        'sha224': hashlib.sha224,
+        'sha256': hashlib.sha256,
+        'sha384': hashlib.sha384,
+        'sha512': hashlib.sha512,
+        'blake2b': hashlib.blake2b,
+        'blake2s': hashlib.blake2s
+    }
 
     @staticmethod
     def get_model_and_instance(modelOrInstance):
@@ -103,7 +117,8 @@ class Field(Attribute):
         return f"{card}{self.name}[{self.type_}]"
 
     def __init__(self, name: str, type_: str, optional: bool = False, multiple: bool = False, unique: bool = False,
-                 values=None, increment=None, range=None, length=None, default=None, private: bool = False):
+                 values=None, increment=None, range=None, length=None, default=None, encrypt=None,
+                 private: bool = False):
         """
 
         :param type_: The type of the field value (expected as string)
@@ -128,6 +143,7 @@ class Field(Attribute):
         self.length = (length, length) if isinstance(length, int) else length
         self.default = default
         self.private = private
+        self.encrypt = encrypt
 
     def get(self, instance):
         """
@@ -279,6 +295,49 @@ class Field(Attribute):
             return data.isoformat()
         elif isinstance(data, date):
             return data.isoformat()
+        else:
+            return data
+
+    ####################################################################################################################
+    # SERVER SERIALIZING
+    ####################################################################################################################
+
+    def from_server(self, data):
+        if self.model:
+            if data is None:
+                return None
+            elif not self.multiple:
+                return self.uid_to_model(data)
+            elif hasattr(data, '__iter__'):
+                return list(map(self.uid_to_model, data))
+            else:
+                raise Exception(f"Can't serialize {data} from server !")
+        elif self.type_ == "datetime" and isinstance(data, str):
+            return datetime.fromisoformat(data)
+        elif self.type_ == "date" and isinstance(data, str):
+            return date.fromisoformat(data)
+        elif self.encrypt:
+            if isinstance(self.encrypt, str):
+                if isinstance(data, str):
+                    data = bytes(data, encoding="utf-8")
+                m = Field.encryptions[self.encrypt]()
+                m.update(data)
+                return m.hexdigest()
+            else:
+                raise Exception(f"Can't encrypt {data} with {self.encrypt}")
+        else:
+            return data
+
+    def to_server(self, data):
+        if self.model:
+            if data is None:
+                return None
+            elif not self.multiple:
+                return self.uid_to_model(data)
+            elif hasattr(data, '__iter__'):
+                return [self.uid_to_model(item) for item in data if item is not None]
+            else:
+                raise Exception(f"Can't serialize {data} to server !")
         else:
             return data
 

@@ -310,6 +310,33 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         return server_data
 
     ####################################################################################################################
+    # SERVER SERIALIZING
+    ####################################################################################################################
+
+    @classmethod
+    def to_server(cls, server_data: dict, mode=RequestMode.LAZY) -> dict:
+        """Map a dict containing server typed data into a dict containing database typed data"""
+        final_data = {}
+        for attribute in cls.__attributes__:
+            if not attribute.private:
+                if not attribute.distant or attribute.on_lazy or mode == RequestMode.EAGER:
+                    server_value = server_data.get(attribute.name)
+                    client_value = attribute.to_server(server_value)
+                    if client_value is not None:
+                        final_data[attribute.name] = client_value
+        return final_data
+
+    @classmethod
+    def from_server(cls, server_data: dict) -> dict:
+        final_data = {}
+        for attribute in cls.__attributes__.where(distant=False):
+            client_value = server_data.get(attribute.name)
+            server_value = attribute.from_server(client_value)
+            if server_value is not None:
+                final_data[attribute.name] = server_value
+        return final_data
+
+    ####################################################################################################################
     # CLIENT SERIALIZING
     ####################################################################################################################
 
