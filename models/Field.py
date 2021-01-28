@@ -193,6 +193,11 @@ class Field(Attribute):
         """Works only when the field is connected to a Model subclass"""
         return Model.__get_model__(self.type_)
 
+    @property
+    def dtype(self):
+        """Works on every fields, return the expected type of data"""
+        return self.model or eval(self.type_)
+
     def parse(self, modelOrInstance, value):
         model, instance = self.get_model_and_instance(modelOrInstance)
 
@@ -221,12 +226,8 @@ class Field(Attribute):
                 if value is None:
                     errors.append("Value is not optional")
 
-            if self.model:
-                if not isinstance(value, self.model):
-                    errors.append(f"The value {value} should be typed as {self.type_}")
-            else:
-                if not isinstance(value, eval(self.type_)):
-                    errors.append(f"The value {value} should be typed as {self.type_}")
+            if not isinstance(value, self.dtype):
+                errors.append(f"The value {value} should be typed as {self.type_}")
 
             if self.unique:
                 if model.__instances__.where(**{self.name: value}).first not in (None, instance):
