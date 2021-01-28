@@ -133,7 +133,7 @@ class EventManager:
     def emit(cls, event, value):
         event = cls.parse_event(event)
         # print('--emit :', repr(event))
-        for r_event, callbacks in cls.events.items():
+        for r_event, callbacks in cls.events.copy().items():
             if match := r_event.match(event):
                 args, kwargs = match
                 for callback in callbacks:
@@ -145,7 +145,13 @@ class EventManager:
         # print('--on   :', repr(event))
         cls.events.setdefault(event, [])
         cls.events[event].append(callback)
-        return lambda: cls.events[event].remove(callback)
+
+        def unsubscribe():
+            callbacks = cls.events[event]
+            if callback in callbacks:
+                callbacks.remove(callback)
+
+        return unsubscribe
 
 
 if __name__ == '__main__':
