@@ -33,6 +33,17 @@ class FieldParsing:
             return value
 
     @staticmethod
+    def parse_bool(value):
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, str) and value in ('True', 'true'):
+            return True
+        elif isinstance(value, str) and value in ('False', 'false'):
+            return False
+        else:
+            return value
+
+    @staticmethod
     def parse_default(model, default):
         if hasattr(default, '__call__'):
             return default(model)
@@ -298,6 +309,8 @@ class Field(Attribute):
             return FieldParsing.parse_int(value)
         elif self.type_ == "float":  # parse as decimal
             return FieldParsing.parse_float(value)
+        elif self.type_ == "bool":  # parse as boolean
+            return FieldParsing.parse_bool(value)
         elif self.model:  # parse as model instance
             return FieldParsing.parse_model(self.model, value)
         else:  # no parsing
