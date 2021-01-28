@@ -201,7 +201,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
         self.__update_apply__(parsed_config)
 
-        Model.__events__.emit(f"/{self.__class__.__name__}/{self.uid}/update", self)
+        Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/update", self)
 
         return self
 
