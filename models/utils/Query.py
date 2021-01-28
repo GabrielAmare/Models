@@ -33,7 +33,10 @@ class Query:
                 yield item
 
     def __len__(self):
-        return len(self.tuple())
+        c = 0
+        for _ in self:
+            c += 1
+        return c
 
     def append(self, obj):
         """self.data.append(obj)"""
@@ -144,4 +147,4 @@ class Query:
         return self
 
     def len(self):
-        return len(self.tuple())
+        return len(self)
