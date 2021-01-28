@@ -134,7 +134,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
             value = config.get(attribute.name)
 
             parsed_value = attribute.parse(self, value)
-            field_errors = attribute.check(self, parsed_value)
+            field_errors = attribute.check(self, parsed_value, mode='create')
 
             parsed_config[attribute.name] = parsed_value
             config_errors[attribute.name] = field_errors
@@ -174,7 +174,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         for name, value in config.items():
             if (attribute := self.__get_attribute__(name)) and not attribute.distant:
                 parsed_value = attribute.parse(self, value)
-                field_errors = attribute.check(self, parsed_value)
+                field_errors = attribute.check(self, parsed_value, mode='update')
 
                 parsed_config[attribute.name] = parsed_value
                 config_errors[attribute.name] = field_errors

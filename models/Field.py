@@ -214,7 +214,8 @@ class Field(Attribute):
         else:  # no parsing
             return value
 
-    def check(self, modelOrInstance, value):
+    def check(self, modelOrInstance, value, mode) -> list:
+        assert mode in ('create', 'update')
         model, instance = self.get_model_and_instance(modelOrInstance)
 
         errors = []
@@ -232,6 +233,10 @@ class Field(Attribute):
             if self.unique:
                 if model.__instances__.where(**{self.name: value}).first not in (None, instance):
                     errors.append(f"Value already existing in the column : {value}")
+
+            if self.static:
+                if mode == 'update':
+                    errors.append(f"The value can't be modified (static field)")
 
             if self.values:
                 if value not in self.values:
