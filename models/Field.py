@@ -77,6 +77,78 @@ class FieldParsing:
         return instance
 
 
+class FieldCheck:
+    @classmethod
+    def init(cls, field):
+        """
+        Yield all the necessary check functions that field needs to perform during the value check
+        :param field: a Field instance
+        :return: A generator of the check functions the field needs to perform
+        """
+        if not field.optional:
+            yield cls.valid_type
+
+            if field.multiple:
+                yield cls.at_least_one_element
+            else:
+                yield cls.not_none
+
+            if field.unique:
+                yield cls.is_unique
+
+            if field.static:
+                yield cls.is_static
+
+            if field.values:
+                yield cls.in_values
+
+            if field.range:
+                yield cls.in_range
+
+            if field.length:
+                yield cls.in_length
+
+    @staticmethod
+    def at_least_one_element(value, **_):
+        if not value:
+            return "At least 1 element required"
+
+    @staticmethod
+    def not_none(value, **_):
+        if value is None:
+            return "Value is not optional"
+
+    @staticmethod
+    def valid_type(field, value, **_):
+        if not isinstance(value, field.dtype):
+            return f"The value {value} should be typed as {field.type_}"
+
+    @staticmethod
+    def is_unique(model, instance, field, value, **_):
+        if model.__instances__.where(**{field.name: value}).first not in (None, instance):
+            return f"Value already existing in the column : {value}"
+
+    @staticmethod
+    def is_static(mode, **_):
+        if mode == 'update':
+            return f"The value can't be modified (static field)"
+
+    @staticmethod
+    def in_values(field, value, **_):
+        if value not in field.values:
+            return f"The value {value} doesn't belong to the list of authorized values"
+
+    @staticmethod
+    def in_range(field, value, **_):
+        if not field.range[0] <= value <= field.range[1]:
+            return f"The value {value} doesn't belong to the range {field.range}"
+
+    @staticmethod
+    def in_length(field, value, **_):
+        if not field.length[0] <= len(value) <= field.length[1]:
+            f"The value length {len(value)} doesn't belong to the length range {field.length}"
+
+
 import hashlib
 
 
@@ -159,6 +231,8 @@ class Field(Attribute):
         self.values = values
         self.increment = increment
 
+        self.checks = list(FieldCheck.init(self))
+
     def get(self, instance):
         """
             Field getter when given an instance and a name
@@ -219,36 +293,10 @@ class Field(Attribute):
         model, instance = self.get_model_and_instance(modelOrInstance)
 
         errors = []
-        if not self.optional:
-            if self.multiple:
-                if not value:
-                    errors.append("At least 1 element required")
-            else:
-                if value is None:
-                    errors.append("Value is not optional")
 
-            if not isinstance(value, self.dtype):
-                errors.append(f"The value {value} should be typed as {self.type_}")
-
-            if self.unique:
-                if model.__instances__.where(**{self.name: value}).first not in (None, instance):
-                    errors.append(f"Value already existing in the column : {value}")
-
-            if self.static:
-                if mode == 'update':
-                    errors.append(f"The value can't be modified (static field)")
-
-            if self.values:
-                if value not in self.values:
-                    errors.append(f"The value {value} doesn't belong to the list of authorized values")
-
-            if self.range:
-                if not self.range[0] <= value <= self.range[1]:
-                    errors.append(f"The value {value} doesn't belong to the range {self.range}")
-
-            if self.length:
-                if not self.length[0] <= len(value) <= self.length[1]:
-                    errors.append(f"The value {value} doesn't belong to the range {self.range}")
+        for check in self.checks:
+            if error := check(model=model, instance=instance, field=self, value=value, mode=mode):
+                errors.append(error)
 
         return errors
 
