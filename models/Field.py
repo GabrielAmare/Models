@@ -233,34 +233,49 @@ class Field(Attribute):
 
         self.checks = list(FieldCheck.init(self))
 
+    ####################################################################################################################
+    # METHODS
+    ####################################################################################################################
+
     def get(self, instance):
         """
             Field getter when given an instance and a name
-        :param instance:
-        :return:
+        :param instance: the instance to get the value from
+        :return: the value associated with the field
         """
         return instance.__data__.get(self.name)
 
     def set(self, instance, value):
         """
             Field setter when given an instance, name and value
-        :param instance:
-        :param name:
-        :param value:
-        :return:
+        :param instance: the instance to set the value at
+        :param value: the value to be set
+        :return: None
         """
         instance.__data__[self.name] = value
         instance.__emit__(self.name, "set", value)
 
-    def append(self, instance, value):
+    def append(self, instance, item):
+        """
+            Field adder when given an instance and an item to add (only works when self.multiple)
+        :param instance: The instance to add to
+        :param value: The item to add
+        :return: None
+        """
         assert self.multiple
-        instance.__data__[self.name].append(value)
-        instance.__emit__(self.name, "append", value)
+        instance.__data__[self.name].append(item)
+        instance.__emit__(self.name, "append", item)
 
-    def remove(self, instance, value):
+    def remove(self, instance, item):
+        """
+            Field remover when given an instance and an item to add (only works when self.multiple)
+        :param instance: The instance to remove from
+        :param value: The item to frmove
+        :return: None
+        """
         assert self.multiple
-        instance.__data__[self.name].append(value)
-        instance.__emit__(self.name, "remove", value)
+        instance.__data__[self.name].append(item)
+        instance.__emit__(self.name, "remove", item)
 
     @property
     def model(self):
