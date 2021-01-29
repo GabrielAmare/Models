@@ -50,9 +50,17 @@ class ForeignKey(Attribute):
     def __call__(self, model):
         result = super().__call__(model)
 
-        def emit_append(owner):
-            Model.__events__.emit(f'{model.__name__}/{getattr(owner, self.get_by).uid}/append/{self.name}', owner)
-
-        Model.__events__.on(f'{self.get_from}/#/create', emit_append)
+        # When an item is created and matches the foreign key
+        Model.__events__.on(f'{self.get_from}/#/create', lambda owned: self.on_create(model, owned))
+        Model.__events__.on(f'{self.get_from}/#/update', lambda owned: self.on_update(model, owned))
 
         return result
+
+    def on_create(self, model, owned):
+        owner = getattr(owned, self.get_by)
+        Model.__events__.emit(f"{model.__name__}/{owner.uid}/append/{self.name}", owned)
+        Model.__events__.emit(f"{model.__name__}/{owner.uid}/update", owner)
+
+    def on_update(self, model, owned):
+        owner = getattr(owned, self.get_by)
+        Model.__events__.emit(f"{model.__name__}/{owner.uid}/update", owner)
