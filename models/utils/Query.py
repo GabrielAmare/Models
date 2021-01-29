@@ -100,6 +100,13 @@ class Query:
         """Map this items of the query using ``function``"""
         return self._apply(self.MAP, function)
 
+    def keeptype(self, t):
+        """Keep only items of a certain type"""
+        if isinstance(t, str):
+            return self.keep(lambda item: item.__class__.__name__ == t)
+        else:
+            return self.keep(lambda item: isinstance(item, t))
+
     def where(self, **config):
         """Filter the items using a ``config`` dict, where attributes of the items should be equal to their pair in the config"""
         return self.keep(lambda obj: all(getattr(obj, key) == val for key, val in config.items()))
