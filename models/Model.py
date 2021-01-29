@@ -89,8 +89,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+
         cls.__crud__ = CRUD(model=cls)
-        cls.__api__ = API(model=cls)
 
     def __new__(cls, **config):
         if (uid := config.get('uid')) is not None:

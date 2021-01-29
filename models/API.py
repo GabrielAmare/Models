@@ -1,28 +1,9 @@
 import json
 from flask import request, jsonify
 from flask_login import current_user
-from .BaseModel import RequestMode
 
 
-class API:
-    def __init__(self, model):
-        self.model = model
-
-    @staticmethod
-    def response(status, data=None, message=None):
-        try:
-            return jsonify(dict(status=status, data=data, message=message))
-        except Exception as e:
-            return jsonify(dict(status="error", data=None, message=str(e)))
-
-    @staticmethod
-    def success(data):
-        return API.response(status="success", data=data)
-
-    @staticmethod
-    def error(message):
-        return API.response(status="error", message=message)
-
+class BaseAPI:
     @staticmethod
     def parse_request():
         try:
@@ -33,88 +14,69 @@ class API:
         except:
             return dict(request.form), {}
 
+    @staticmethod
+    def response(status, data=None, message=None):
+        try:
+            return jsonify(dict(status=status, data=data, message=message))
+        except Exception as e:
+            return jsonify(dict(status="error", data=None, message=str(e)))
+
+    @classmethod
+    def success(cls, data):
+        return cls.response(status="success", data=data)
+
+    @classmethod
+    def error(cls, message):
+        return cls.response(status="error", message=message)
+
+
+class API(BaseAPI):
+    def __init__(self, crud, debug=True):
+        self.crud = crud
+        self.debug = debug
+
     def build_routes(self, api):
-        name = self.model.__name__.lower()
+        name = self.crud.model.__name__.lower()
+        api.add_url_rule(rule=f"/json/{name}/new", endpoint=f"POST_{name}", view_func=self.POST, methods=['POST'])
+        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"GET_{name}", view_func=self.GET, methods=['GET'])
+        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"PUT_{name}", view_func=self.PUT, methods=['PUT'])
+        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"DELETE_{name}", view_func=self.DELETE,
+                         methods=['DELETE'])
 
-        api.add_url_rule(
-            rule='/json/' + name + '/new',
-            endpoint='POST_' + name,
-            view_func=lambda: self.POST(),
-            methods=['POST']
-        )
-        api.add_url_rule(
-            rule='/json/' + name + '/<uid>',
-            endpoint='GET_' + name,
-            view_func=lambda uid: self.GET(int(uid)),
-            methods=['GET']
-        )
-        api.add_url_rule(
-            rule='/json/' + name + '/<uid>',
-            endpoint='PUT_' + name,
-            view_func=lambda uid: self.PUT(int(uid)),
-            methods=['PUT']
-        )
-        api.add_url_rule(
-            rule='/json/' + name + '/<uid>',
-            endpoint='DELETE_' + name,
-            view_func=lambda uid: self.DELETE(int(uid)),
-            methods=['DELETE']
-        )
+    def REQUEST(self, uid, data, format):
+        try:
+            request_data = dict(user=current_user, uid=uid, data=data, format=format)
+            client_data = self.crud.apply_client(**request_data)
+            return self.success(client_data)
+        except Exception as e:
+            return self.error(str(e))
 
-    def GET(self, uid, mode=RequestMode.EAGER):
+    def GET(self, uid):
         data, format = self.parse_request()
 
-        if self.model.debug:
-            print(f"GET : {self.model.__name__}:{uid}")
+        if self.debug:
+            print(f"GET : {self.crud.model.__name__}:{uid}")
 
-        client_data = self.model.__crud__.apply_client(
-            user=current_user,
-            uid=uid,
-            data={},
-            format=format,
-            mode=mode
-        )
-        return self.success(client_data)
+        return self.REQUEST(uid=int(uid), data={}, format=format)
 
-    def POST(self, mode=RequestMode.EAGER):
+    def POST(self):
         data, format = self.parse_request()
 
-        if self.model.debug:
-            print(f"POST : {self.model.__name__} < {data}")
+        if self.debug:
+            print(f"POST : {self.crud.model.__name__} < {data}")
 
-        client_data = self.model.__crud__.apply_client(
-            user=current_user,
-            uid=0,
-            data=data,
-            format=format,
-            mode=mode
-        )
-        return self.success(client_data)
+        return self.REQUEST(uid=0, data=data, format=format)
 
-    def PUT(self, uid, mode=RequestMode.EAGER):
+    def PUT(self, uid):
         data, format = self.parse_request()
 
-        if self.model.debug:
-            print(f"PUT : {self.model.__name__}:{uid} < {data}")
+        if self.debug:
+            print(f"PUT : {self.crud.model.__name__}:{uid} < {data}")
 
-        client_data = self.model.__crud__.apply_client(
-            user=current_user,
-            uid=uid,
-            data=data,
-            format=format,
-            mode=mode
-        )
-        return self.success(client_data)
+        return self.REQUEST(uid=int(uid), data=data, format=format)
 
-    def DELETE(self, uid, mode=RequestMode.EAGER):
-        if self.model.debug:
-            print(f"DELETE : {self.model.__name__}:{uid}")
+    def DELETE(self, uid):
+        if self.debug:
+            print(f"DELETE : {self.crud.model.__name__}:{uid}")
 
-        client_data = self.model.__crud__.apply_client(
-            user=current_user,
-            uid=-uid,
-            data={},
-            format={},
-            mode=mode
-        )
-        return self.success(client_data)
+        return self.REQUEST(uid=-int(uid), data={}, format={})

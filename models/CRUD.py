@@ -2,6 +2,7 @@ import re
 from .utils import Attribute, Query
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
+from .API import API
 
 regex_int = re.compile(r'^-?[0-9]+$')
 
@@ -29,6 +30,8 @@ class CRUD:
 
     def __init__(self, model):
         self.model = model
+
+        self.api = API(crud=self)
 
         self.add(self)
 
