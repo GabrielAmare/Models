@@ -1,22 +1,13 @@
 from .utils import Attribute
 from .Model import Model
+from .ForeignKeyDescriptor import ForeignKeyDescriptor
 
 
 class ForeignKey(Attribute):
     distant = True
 
     def __rpy__(self):
-        if isinstance(self.get_from, str):
-            card = {
-                (False, False): "!",
-                (False, True): "+",
-                (True, False): "?",
-                (True, True): "*",
-            }[(self.optional, self.multiple)]
-
-            return f"({card}{self.name}[{self.get_from}.{self.get_by}])"
-        else:
-            return f">{self.name}"
+        return self.__descriptor__.to_rpy()
 
     @property
     def model(self):
@@ -35,8 +26,21 @@ class ForeignKey(Attribute):
             return self.get_from(from_instance)
 
     def __init__(self, name, get_from, get_by: str = None, optional: bool = False, multiple: bool = False,
-                 on_lazy: bool = False):
+                 on_lazy: bool = False, private: bool = False):
         super().__init__(name)
+
+        self.__descriptor__ = ForeignKeyDescriptor(
+            # BASE
+            name=name,
+            optional=optional,
+            multiple=multiple,
+            private=private,
+            # FK
+            get_from=get_from,
+            get_by=get_by,
+            on_lazy=on_lazy
+        )
+
         self.get_from = get_from
         self.get_by = get_by
         self.optional = optional
