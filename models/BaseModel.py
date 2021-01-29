@@ -56,6 +56,10 @@ class BaseModel:
 
     __events__ = EventManager
 
+    __fields__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "Field")
+    __foreign_keys__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "ForeignKey")
+    __methods__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "Method")
+
     @classmethod
     def __on_delete__(cls, mode=None):
         root_mode = cls.__get_delete_mode__()
@@ -102,6 +106,10 @@ class BaseModel:
 
         cls.__attributes__ = Query(safe=True)
         cls.__inherit_attributes__()
+
+        cls.__fields__ = cls.__attributes__.keeptype("Field")
+        cls.__foreign_keys__ = cls.__attributes__.keeptype("ForeignKey")
+        cls.__methods__ = cls.__attributes__.keeptype("Method")
 
         cls.__instances__ = Query(safe=True)
 
