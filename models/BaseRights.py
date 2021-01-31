@@ -37,5 +37,31 @@ class BaseRights:
         return not cls.isUnknown(user) and hasattr(user, 'role') and user.role == "ADMIN"
 
     @classmethod
-    def on(cls, user, action: str, resource: BaseModel = None):
+    def can(cls, user, action: str, resource: BaseModel = None):
         raise NotImplementedError
+
+    on = can  # deprecated !
+
+    @classmethod
+    def can_read(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.READ, resource)
+
+    @classmethod
+    def can_create(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.CREATE, resource)
+
+    @classmethod
+    def can_update(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.UPDATE, resource)
+
+    @classmethod
+    def can_soft_delete(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.SOFT_DELETE, resource)
+
+    @classmethod
+    def can_hard_delete(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.HARD_DELETE, resource)
+
+    @classmethod
+    def can_restore(cls, user, resource: BaseModel = None):
+        return cls.can(user, cls.RESTORE, resource)
