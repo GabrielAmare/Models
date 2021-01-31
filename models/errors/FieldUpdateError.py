@@ -2,4 +2,5 @@ from .FieldError import FieldError
 
 
 class FieldUpdateError(FieldError):
-    pass
+    def __str__(self):
+        return f"[u]{super().__str__()}"

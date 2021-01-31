@@ -2,4 +2,5 @@ from .FieldError import FieldError
 
 
 class FieldCreateError(FieldError):
-    pass
+    def __str__(self):
+        return f"[c]{super().__str__()}"
