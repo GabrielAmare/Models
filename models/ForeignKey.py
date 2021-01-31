@@ -56,6 +56,10 @@ class ForeignKey(Attribute):
 
         return result
 
+    @property
+    def holds_model(self) -> bool:
+        return True
+
     def on_create(self, model, owned):
         owner = getattr(owned, self.get_by)
         Model.__events__.emit(f"{model.__name__}/{owner.uid}/append/{self.name}", owned)
