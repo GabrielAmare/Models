@@ -1,12 +1,10 @@
 import json
 from flask import request, jsonify
 from flask_login import current_user
+from .utils import DebugClass
 
 
-class BaseAPI:
-    def __init__(self, debug):
-        self.debug = debug
-
+class BaseAPI(DebugClass):
     @staticmethod
     def parse_request():
         try:
