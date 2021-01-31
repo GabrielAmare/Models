@@ -4,15 +4,26 @@ from flask_login import current_user
 
 
 class BaseAPI:
+    def __init__(self, debug):
+        self.debug = debug
+
     @staticmethod
     def parse_request():
         try:
             request_data = json.loads(request.data, encoding="utf-8")
             data = request_data.get('data', {})
             format = request_data.get('format', {})
-            return data, format
         except:
-            return dict(request.form), {}
+            data, format = dict(request.form), {}
+        return data, format
+
+    @classmethod
+    def include_parsed_request(cls, method):
+        def new_method(self, *args, **kwargs):
+            data, format = cls.parse_request()
+            return method(self, data, format, *args, **kwargs)
+
+        return new_method
 
     @staticmethod
     def response(status, data=None, message=None):
@@ -29,11 +40,15 @@ class BaseAPI:
     def error(cls, message):
         return cls.response(status="error", message=message)
 
+    def debug_message(self, message):
+        if self.debug:
+            print(f"[{self.__class__.__name__}] {message}")
+
 
 class API(BaseAPI):
     def __init__(self, crud, debug=True):
+        super().__init__(debug)
         self.crud = crud
-        self.debug = debug
 
     def build_routes(self, api):
         name = self.crud.model.__name__.lower()
@@ -51,32 +66,22 @@ class API(BaseAPI):
         except Exception as e:
             return self.error(str(e))
 
-    def GET(self, uid):
-        data, format = self.parse_request()
-
-        if self.debug:
-            print(f"GET : {self.crud.model.__name__}:{uid}")
-
+    @BaseAPI.include_parsed_request
+    def GET(self, _data, format, uid):
+        self.debug_message(f"GET : {self.crud.model.__name__}:{uid}")
         return self.REQUEST(uid=int(uid), data={}, format=format)
 
-    def POST(self):
-        data, format = self.parse_request()
-
-        if self.debug:
-            print(f"POST : {self.crud.model.__name__} < {data}")
-
+    @BaseAPI.include_parsed_request
+    def POST(self, data, format):
+        self.debug_message(f"POST : {self.crud.model.__name__} < {data}")
         return self.REQUEST(uid=0, data=data, format=format)
 
-    def PUT(self, uid):
-        data, format = self.parse_request()
-
-        if self.debug:
-            print(f"PUT : {self.crud.model.__name__}:{uid} < {data}")
-
+    @BaseAPI.include_parsed_request
+    def PUT(self, data, format, uid):
+        self.debug_message(f"PUT : {self.crud.model.__name__}:{uid} < {data}")
         return self.REQUEST(uid=int(uid), data=data, format=format)
 
-    def DELETE(self, uid):
-        if self.debug:
-            print(f"DELETE : {self.crud.model.__name__}:{uid}")
-
+    @BaseAPI.include_parsed_request
+    def DELETE(self, _data, _format, uid):
+        self.debug_message(f"DELETE : {self.crud.model.__name__}:{uid}")
         return self.REQUEST(uid=-int(uid), data={}, format={})

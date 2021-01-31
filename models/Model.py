@@ -8,7 +8,6 @@ from .utils import ConfigError, Query
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
 from .CRUD import CRUD
-from .API import API
 
 
 def lock(method):
@@ -79,7 +78,6 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
     __rights__: BaseRights = None
     __crud__: CRUD = None
-    __api__: API = None
 
     __data__: dict
 
