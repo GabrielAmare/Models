@@ -1,23 +1,5 @@
-from .utils import Query, EventManager
+from .utils import Query, EventManager, ModelHandler
 from .DatabaseManager import DatabaseManager
-
-
-class ModelOverwriteError(Exception):
-    def __init__(self, old, new):
-        self.old = old
-        self.new = new
-
-    def __repr__(self):
-        return f"You're trying to redefine {self.old.__name__}, set param overwrite=True or name your model differently"
-
-
-class InstanceAlreadyExistsError(Exception):
-    def __init__(self, old, new):
-        self.old = old
-        self.new = new
-
-    def __repr__(self):
-        return f"You're trying to redefine {self.old.__class__.__name__}:{self.old.uid}, use __update__ method instead"
 
 
 class DeleteMode:
@@ -46,19 +28,10 @@ class BaseModel:
             ALLOW_HARD => soft delete by default but allow hard delete
             ALLOW_SOFT => hard delete by default but allow soft delete
     """
-    __models__: Query = Query(safe=True)
-
-    __attributes__: Query = Query(safe=True)
-    __instances__: Query = Query(safe=True)
-
     __dbm__: DatabaseManager
     __delete_mode__ = DeleteMode.ALLOW_HARD
 
     __events__ = EventManager
-
-    __fields__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "Field")
-    __foreign_keys__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "ForeignKey")
-    __methods__: Query = __attributes__.keep(lambda attribute: attribute.__class__.__name__ == "Method")
 
     @classmethod
     def __on_delete__(cls, mode=None):
@@ -102,88 +75,51 @@ class BaseModel:
 
         # register the Model subclass into the subclasses and create their Database folder
         if not abstract:
-            cls.__add_model__(cls)
+            ModelHandler.add_model(cls)
 
-        cls.__attributes__ = Query(safe=True)
-        cls.__inherit_attributes__()
+        cls.h = ModelHandler(cls)
 
-        cls.__fields__ = cls.__attributes__.keeptype("Field")
-        cls.__foreign_keys__ = cls.__attributes__.keeptype("ForeignKey")
-        cls.__methods__ = cls.__attributes__.keeptype("Method")
+        # inheritance
+        for mro in reversed(cls.__mro__):
+            if issubclass(mro, BaseModel):
+                for attribute in mro.h.attributes:
+                    cls.h.add_attribute(attribute)
 
-        cls.__instances__ = Query(safe=True)
+        cls.__attributes__ = cls.h.attributes  # deprecated
+        cls.__fields__ = cls.h.fields  # deprecated
+        cls.__foreign_keys__ = cls.h.foreign_keys  # deprecated
+        cls.__methods__ = cls.h.methods  # deprecated
+        cls.__instances__ = cls.h.instances  # deprecated
+        cls.__get_attribute__ = cls.h.get_attribute  # deprecated
+        cls.__add_attribute__ = cls.h.add_attribute  # deprecated
+        cls.__get_instance__ = cls.h.get_instance  # deprecated
+        cls.__add_instance__ = cls.h.add_instance  # deprecated
+        cls.__del_instance__ = cls.h.del_instance  # deprecated
 
     def __getattribute__(self, name: str):
-        if name.startswith('__') and name.endswith('__'):
+        if name.startswith('__') and name.endswith('__') or name in ['h']:
             return super().__getattribute__(name)
-        elif attribute := self.__get_attribute__(name):
+        elif attribute := self.h.get_attribute(name):
             return attribute.get(self)
         else:
             return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
-        if attribute := self.__get_attribute__(name):
+        if attribute := self.h.get_attribute(name):
             attribute.set(self, value)
         else:
             super().__setattr__(name, value)
 
-    ####################################################################################################################
-    # __MODELS__
-    ####################################################################################################################
 
-    @staticmethod
-    def __get_model__(name):
-        return BaseModel.__models__.where(__name__=name).first
+ModelHandler.base_model = BaseModel
 
-    @staticmethod
-    def __add_model__(model, overwrite: bool = False):
-        if old := BaseModel.__get_model__(model.__name__):
-            if overwrite:
-                BaseModel.__models__.replace(old, model)
-            else:
-                raise ModelOverwriteError(old=old, new=model)
-        else:
-            BaseModel.__models__.append(model)
+BaseModel.h = ModelHandler(BaseModel)
+BaseModel.__models__ = ModelHandler.models  # deprecated
+BaseModel.__get_model__ = ModelHandler.get_model  # deprecated
+BaseModel.__add_model__ = ModelHandler.add_model  # deprecated
 
-    ####################################################################################################################
-    # __ATTRIBUTES__
-    ####################################################################################################################
-
-    @classmethod
-    def __inherit_attributes__(cls):
-        for model in reversed(cls.__mro__):
-            if model is BaseModel or issubclass(model, BaseModel):
-                for attribute in model.__attributes__:
-                    cls.__add_attribute__(attribute)
-
-    @classmethod
-    def __get_attribute__(cls, name):
-        return cls.__attributes__.where(name=name).first
-
-    @classmethod
-    def __add_attribute__(cls, attribute):
-        if old := cls.__get_attribute__(attribute.name):
-            cls.__attributes__.replace(old, attribute)
-        else:
-            cls.__attributes__.append(attribute)
-
-    ####################################################################################################################
-    # __INSTANCES__
-    ####################################################################################################################
-
-    @classmethod
-    def __get_instance__(cls, uid):
-        return cls.__instances__.where(uid=uid).first
-
-    @classmethod
-    def __add_instance__(cls, instance):
-        if old := cls.__get_instance__(instance.uid):
-            raise InstanceAlreadyExistsError(old=old, new=instance)
-        else:
-            cls.__instances__.append(instance)
-
-    @classmethod
-    def __del_instance__(cls, instance):
-        assert isinstance(instance, cls)
-        cls.__instances__.remove(instance)
-        del instance
+BaseModel.__attributes__ = BaseModel.h.attributes  # deprecated
+BaseModel.__instances__ = BaseModel.h.instances  # deprecated
+BaseModel.__fields__ = BaseModel.h.fields  # deprecated
+BaseModel.__foreign_keys__ = BaseModel.h.foreign_keys  # deprecated
+BaseModel.__methods__ = BaseModel.h.methods  # deprecated
