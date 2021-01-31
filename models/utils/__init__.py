@@ -1,3 +1,4 @@
+from .functions import *
 from .Attribute import Attribute
 from .ConfigError import ConfigError
 from .EventManager import EventManager
