@@ -155,3 +155,12 @@ class Query:
 
     def len(self):
         return len(self)
+
+    def sfilter(self, function):
+        return self.filter(lambda item: function(*item))
+
+    def skeep(self, function):
+        return self.keep(lambda item: function(*item))
+
+    def smap(self, function):
+        return self.map(lambda item: function(*item))
