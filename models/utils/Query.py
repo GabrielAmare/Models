@@ -85,7 +85,8 @@ class Query:
 
     def _apply(self, tag, function):
         query = self.copy(safe=False) if self._safe else self
-        query.funcs.append((tag, function))
+        func = (tag, function if hasattr(function, '__call__') else lambda item: function is item)
+        query.funcs.append(func)
         return query
 
     def filter(self, function):
