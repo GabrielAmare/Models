@@ -130,7 +130,7 @@ class Field(Attribute):
         )
 
     def __rpy__(self):
-        return self.__descriptor__.to_rpy()
+        return self.descriptor.to_rpy()
 
     def __init__(self, name: str, type_: str, optional: bool = False, multiple: bool = False, unique: bool = False,
                  values=None, increment=None, range=None, length=None, default=None, encrypt=None,
@@ -150,7 +150,7 @@ class Field(Attribute):
         """
         super().__init__(name)
 
-        self.__descriptor__ = FieldDescriptor(
+        self.descriptor = FieldDescriptor(
             # BASE
             name=name,
             type=type_,
@@ -242,7 +242,7 @@ class Field(Attribute):
 
     def check(self, model, instance, value, create: bool) -> FieldError:
         config = dict(model=model, instance=instance, field=self, value=value, create=create)
-        errors = self.__descriptor__.checks.call(**config).filter(None).list()
+        errors = self.descriptor.checks.call(**config).filter(None).list()
         err_cls = FieldCreateError if create else FieldUpdateError
         return err_cls(self, errors)
 

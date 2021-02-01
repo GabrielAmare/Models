@@ -20,7 +20,7 @@ class ForeignKey(Attribute):
         )
 
     def __rpy__(self):
-        return self.__descriptor__.to_rpy()
+        return self.descriptor.to_rpy()
 
     @property
     def model(self):
@@ -39,7 +39,7 @@ class ForeignKey(Attribute):
                  on_lazy: bool = False, private: bool = False):
         super().__init__(name)
 
-        self.__descriptor__ = ForeignKeyDescriptor(
+        self.descriptor = ForeignKeyDescriptor(
             # BASE
             name=name,
             type=type,
