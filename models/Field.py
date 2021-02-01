@@ -298,7 +298,13 @@ class Field(Attribute):
     ####################################################################################################################
 
     def from_database(self, value, inside=False):
-        if isinstance(value, list):
+        if value is None:
+            if self.multiple:
+                assert not inside
+                return []
+            else:
+                return None
+        elif isinstance(value, list):
             assert self.multiple
             assert not inside
             return Query(value).map(lambda e: self.from_database(e, True)).filter(bool).list()
@@ -313,17 +319,14 @@ class Field(Attribute):
             return date.fromisoformat(value)
         elif isinstance(value, self.dtype):
             return value
-        elif value is None:
-            if self.multiple:
-                assert not inside
-                return []
-            else:
-                return None
         else:
             raise Exception(f"Unable to parse {type(value)} to database format !")
 
     def to_database(self, value, inside=False):
-        if isinstance(value, list):
+        if value is None:
+            assert self.multiple or self.optional
+            return None
+        elif isinstance(value, list):
             assert self.multiple
             return Query(value).map(lambda e: self.to_database(e, True)).filter(None).list() or None
         elif self.model:
@@ -337,9 +340,6 @@ class Field(Attribute):
             return value.isoformat()
         elif isinstance(value, self.dtype):
             return value
-        elif value is None:
-            assert self.multiple or self.optional
-            return None
         else:
             raise Exception(f"Unable to parse {type(value)} to database format !")
 
