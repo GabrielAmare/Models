@@ -59,6 +59,19 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
                 print("   ", instance)
             print()
 
+    @staticmethod
+    def __build_routes__(api):
+        for model in Model.h.models:
+            model.__crud__.api.build_routes(api=api)
+
+    @staticmethod
+    def __create_backup__():
+        """Create a backup for the entire database"""
+        now = datetime.datetime.now()
+        timecode = f"db_{now.year}_{now.month}_{now.day}_{now.hour}_{now.minute}_{now.second}_{now.microsecond}"
+        new_dirpath = os.path.join(Model.__backupdir__, timecode)
+        shutil.copytree(Model.__dbfp__, new_dirpath)
+
     __dbfp__: str = 'database'
     __backupdir__: str = 'backups'
     __db_errs__: bool = True
@@ -97,10 +110,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         self.__class__.__apply__(instance=self, config=config, create=False)
         return self
 
-    @staticmethod
-    def __build_routes__(api):
-        for model in Model.h.models:
-            model.__crud__.api.build_routes(api=api)
+    def __repr__(self):
+        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.to_database().items()) + ")"
 
     @classmethod
     def __apply__(cls, instance, config: dict, create: bool, save: bool = False):
@@ -197,9 +208,6 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
         return instance
 
-    def __repr__(self):
-        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.to_database().items()) + ")"
-
     @classmethod
     def from_dict(cls, config):
         # we remove the foreign keys from the config
@@ -279,14 +287,6 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def restore(cls, uid: int):
         cls.__dbm__.restore(uid)
-
-    @staticmethod
-    def __create_backup__():
-        """Create a backup for the entire database"""
-        now = datetime.datetime.now()
-        timecode = f"db_{now.year}_{now.month}_{now.day}_{now.hour}_{now.minute}_{now.second}_{now.microsecond}"
-        new_dirpath = os.path.join(Model.__backupdir__, timecode)
-        shutil.copytree(Model.__dbfp__, new_dirpath)
 
     @classmethod
     def reload_db(cls):
