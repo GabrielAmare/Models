@@ -4,6 +4,8 @@ import sys
 import shutil
 import datetime
 
+from models.utils import FileMgmt
+
 from .errors import ModelCreateError, ModelUpdateError
 from .utils import Query
 
@@ -15,6 +17,55 @@ from .FORMATS import FORMATS
 
 class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     debug = False
+
+    @staticmethod
+    def __build_database__():
+        def flat(root: str, struct: dict):
+            yield root
+            for key, val in struct.items():
+                for path in flat(key, val):
+                    yield os.path.join(root, path)
+
+        db_struct = Model.h.models.map(lambda model: (model.__name__, {"formats": {}})).dict()
+
+        for path in flat(Model.__dbfp__, db_struct):
+            if not os.path.exists(path):
+                print(f"Model.__build_database__ : mkdir {path}")
+                os.mkdir(path)
+
+    @staticmethod
+    def __build_formats__():
+        def build_LAZY_format(model: type):
+            assert issubclass(model, Model)
+            format = {}
+            for field in model.h.fields:
+                if field.model:
+                    l_format = dict(uid="int")
+                else:
+                    l_format = field.type_
+                format[field.name] = l_format
+
+            return format
+
+        def build_EAGER_format(model: type):
+            assert issubclass(model, Model)
+            format = {}
+            for field in model.h.fields:
+                if field.model:
+                    l_format = build_LAZY_format(model=field.model)
+                else:
+                    l_format = field.type_
+                format[field.name] = l_format
+
+            for foreign_key in model.h.foreign_keys:
+                l_format = build_LAZY_format(model=foreign_key.model)
+                format[foreign_key.name] = l_format
+
+            return format
+
+        for model in Model.h.models:
+            FileMgmt.save_json(f"{Model.__dbfp__}/{model.__name__}/formats/eager.json", build_EAGER_format(model))
+            FileMgmt.save_json(f"{Model.__dbfp__}/{model.__name__}/formats/lazy.json", build_LAZY_format(model))
 
     @staticmethod
     def setup(__dbfp__=None, __backupdir__=None, __db_errs__=None, __db_warns__=None, loadall=False):
@@ -30,17 +81,9 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         if __db_warns__ is not None:
             Model.__db_warns__ = bool(__db_warns__)
 
-        if not os.path.exists(Model.__dbfp__):
-            N = Model.h.models.getattr('__name__').map(len).max(default=5)
-
-            path = os.path.abspath(Model.__dbfp__)
-            print(f"DATABASE(Model)".ljust(10 + N) + f" : mkdir {path}")
-            os.mkdir(path)
-
-            for model in Model.h.models.filter(lambda model: model.__dbm__.exists()):
-                path = os.path.abspath(model.__dbm__.filepath())
-                print(f"DATABASE({model.__name__})".ljust(10 + N) + f" : mkdir {path}")
-                model.__dbm__.mkdir()
+        if Model.__dbfp__:
+            Model.__build_database__()
+            Model.__build_formats__()
 
         if loadall:
             Model.loadall()
@@ -111,7 +154,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         return self
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.to_database().items()) + ")"
+        return self.__class__.__name__ + "(" + ", ".join(
+            f"{key}={repr(val)}" for key, val in self.to_database().items()) + ")"
 
     @classmethod
     def __apply__(cls, instance, config: dict, create: bool, save: bool = False):
