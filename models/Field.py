@@ -129,16 +129,6 @@ class Field(Attribute):
             **config
         )
 
-    @staticmethod
-    def get_model_and_instance(modelOrInstance):
-        if type(modelOrInstance) is type:
-            model = modelOrInstance
-            instance = None
-        else:
-            model = modelOrInstance.__class__
-            instance = modelOrInstance
-        return model, instance
-
     def __rpy__(self):
         return self.__descriptor__.to_rpy()
 
@@ -255,11 +245,6 @@ class Field(Attribute):
         errors = self.__descriptor__.checks.call(**config).filter(None).list()
         err_cls = FieldCreateError if create else FieldUpdateError
         return err_cls(self, errors)
-
-    def parse_and_check(self, modelOrInstance, value, mode):
-        field_value = self.parse(modelOrInstance, value)
-        field_errors = self.check(modelOrInstance, field_value, mode)
-        return field_value, field_errors
 
     ####################################################################################################################
     # SERIALIZATION
