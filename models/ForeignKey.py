@@ -14,34 +14,31 @@ class ForeignKey(Attribute):
         return Model.h.get_model(self.get_from)
 
     def get(self, from_instance):
-        if isinstance(self.get_from, str):
-            model = self.model
-            assert model, self.get_from
-            result = model.h.instances.where(**{self.get_by: from_instance})
-            if self.multiple:
-                return result.finalize()
-            else:
-                return result.first()
+        model = self.model
+        assert model, self.get_from
+        result = model.h.instances.where(**{self.get_by: from_instance})
+        if self.multiple:
+            return result.finalize()
         else:
-            return self.get_from(from_instance)
+            return result.first()
 
-    def __init__(self, name, get_from, get_by: str = None, optional: bool = False, multiple: bool = False,
+    def __init__(self, name, type: str, get_by: str = None, optional: bool = False, multiple: bool = False,
                  on_lazy: bool = False, private: bool = False):
         super().__init__(name)
 
         self.__descriptor__ = ForeignKeyDescriptor(
             # BASE
             name=name,
+            type=type,
             optional=optional,
             multiple=multiple,
             private=private,
             # FK
-            get_from=get_from,
             get_by=get_by,
             on_lazy=on_lazy
         )
 
-        self.get_from = get_from
+        self.get_from = type
         self.get_by = get_by
         self.optional = optional
         self.multiple = multiple
