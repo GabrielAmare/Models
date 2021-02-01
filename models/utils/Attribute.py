@@ -16,8 +16,3 @@ class Attribute:
     def __call__(self, model):
         model.h.attributes.append(self)
         return model
-
-    @property
-    def holds_model(self) -> bool:
-        """Return True if the data holded by the attribute is/are instances of Model"""
-        return False

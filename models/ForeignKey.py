@@ -66,10 +66,6 @@ class ForeignKey(Attribute):
 
         return result
 
-    @property
-    def holds_model(self) -> bool:
-        return True
-
     def on_create(self, model, owned):
         owner = getattr(owned, self.get_by)
         model.h.emit(instance=owner, method="append", name=self.name, value=owned)
