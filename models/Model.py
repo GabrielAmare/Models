@@ -236,9 +236,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     ###################################################################################
 
     def save(self):
-        server_data = self.to_dict(mode=RequestMode.LAZY, safe=True)
-        database_data = self.to_database(server_data)
-        self.__dbm__.save(database_data)
+        data = self.to_database()
+        self.__dbm__.save(data)
         return self
 
     @classmethod
@@ -248,7 +247,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
                 return instance
         database_data = cls.__dbm__.read(uid)
         server_data = cls.from_database(database_data)
-        return cls.from_dict(server_data)
+        return cls(**server_data)
 
     @classmethod
     def loadall(cls, force_reload: bool = False):
@@ -294,16 +293,14 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     # DATABASE SERIALIZING
     ####################################################################################################################
 
-    @classmethod
-    def to_database(cls, server_data: dict) -> dict:
-        """Map a dict containing server typed data into a dict containing database typed data"""
-        database_data = {}
-        for field in cls.h.fields:
-            server_value = server_data.get(field.name)
-            database_value = field.to_database(server_value)
-            if database_value is not None:
-                database_data[field.name] = database_value
-        return database_data
+    def to_database(self) -> dict:
+        result = {}
+        for field in self.h.fields:
+            value = field.get(self)
+            value = field.to_database(value)
+            if value is not None:
+                result[field.name] = value
+        return result
 
     @classmethod
     def from_database(cls, database_data: dict) -> dict:
@@ -311,8 +308,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         for field in cls.h.fields:
             database_value = database_data.get(field.name)
             server_value = field.from_database(database_value)
-            if server_value is not None:
-                server_data[field.name] = server_value
+            server_data[field.name] = server_value
         return server_data
 
     ####################################################################################################################

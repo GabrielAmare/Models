@@ -297,41 +297,51 @@ class Field(Attribute):
     # DATABASE SERIALIZING
     ####################################################################################################################
 
-    def from_database(self, data):
-        # return self.deserialize(data)
-        if self.model:
-            if data is None:
-                return None
-            elif not self.multiple:
-                return FieldService.as_model(self.model, data)
-            elif hasattr(data, '__iter__'):
-                return [FieldService.as_model(self.model, item) for item in data]
+    def from_database(self, value, inside=False):
+        if isinstance(value, list):
+            assert self.multiple
+            assert not inside
+            return Query(value).map(lambda e: self.from_database(e, True)).filter(bool).list()
+        elif self.model:
+            assert isinstance(value, int)
+            return self.model.load(value)
+        elif self.dtype is datetime:
+            assert isinstance(value, str)
+            return datetime.fromisoformat(value)
+        elif self.dtype is date:
+            assert isinstance(value, str)
+            return date.fromisoformat(value)
+        elif isinstance(value, self.dtype):
+            return value
+        elif value is None:
+            if self.multiple:
+                assert not inside
+                return []
             else:
-                raise Exception(f"Can't serialize {data} from database !")
-        elif self.type_ == "datetime" and isinstance(data, str):
-            return datetime.fromisoformat(data)
-        elif self.type_ == "date" and isinstance(data, str):
-            return date.fromisoformat(data)
+                return None
         else:
-            return data
+            raise Exception(f"Unable to parse {type(value)} to database format !")
 
-    def to_database(self, data):
-        # return self.serialize(data)
-        if self.model:
-            if data is None:
-                return None
-            elif not self.multiple:
-                return FieldService.as_uid(self.model, data)
-            elif hasattr(data, '__iter__'):
-                return [FieldService.as_uid(self.model, item) for item in data if item is not None]
-            else:
-                raise Exception(f"Can't serialize {data} to database !")
-        elif isinstance(data, datetime):
-            return data.isoformat()
-        elif isinstance(data, date):
-            return data.isoformat()
+    def to_database(self, value, inside=False):
+        if isinstance(value, list):
+            assert self.multiple
+            return Query(value).map(lambda e: self.to_database(e, True)).filter(None).list() or None
+        elif self.model:
+            assert isinstance(value, self.model)
+            return value.uid
+        elif self.dtype is datetime:
+            assert isinstance(value, datetime)
+            return value.isoformat()
+        elif self.dtype is date:
+            assert isinstance(value, date)
+            return value.isoformat()
+        elif isinstance(value, self.dtype):
+            return value
+        elif value is None:
+            assert self.multiple or self.optional
+            return None
         else:
-            return data
+            raise Exception(f"Unable to parse {type(value)} to database format !")
 
     ####################################################################################################################
     # SERVER SERIALIZING
