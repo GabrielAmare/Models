@@ -31,8 +31,6 @@ class BaseModel:
     __dbm__: DatabaseManager
     __delete_mode__ = DeleteMode.ALLOW_HARD
 
-    __events__ = EventManager
-
     @classmethod
     def __on_delete__(cls, mode=None):
         root_mode = cls.__get_delete_mode__()

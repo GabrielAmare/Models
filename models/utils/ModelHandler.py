@@ -1,4 +1,5 @@
-from models.utils import Query
+from .Query import Query
+from .EventManager import EventManager
 
 
 class ModelOverwriteError(Exception):
@@ -21,6 +22,7 @@ class InstanceAlreadyExistsError(Exception):
 
 class ModelHandler:
     models: Query = Query(safe=True)
+    events = EventManager
 
     attributes: Query
     field: Query
@@ -114,3 +116,18 @@ class ModelHandler:
 
     def get_method(self, name: str):
         return self.methods.where(name=name).first
+
+    ####################################################################################################################
+    # EVENTS
+    ####################################################################################################################
+
+    def event(self, uid, method, name):
+        return f"{self.model.__name__}/{uid}/{method}/{name}"
+
+    def emit(self, uid, method, name, value):
+        event = self.event(uid, method, name)
+        return self.events.emit(event, value)
+
+    def on(self, uid, method, name, callback):
+        event = self.event(uid, method, name)
+        return self.events.on(event, callback)
