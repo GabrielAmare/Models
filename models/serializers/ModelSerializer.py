@@ -20,7 +20,7 @@ class ModelSeriliazer(BaseSerializer):
             _uid = value.get('uid') if isinstance(value, dict) else value
             uid = IntSerializer.deserialize(_uid)
 
-            instance = dtype.__instances__.where(uid=uid).first
+            instance = dtype.h.get_instance(uid)
 
             if not instance:
                 instance = dtype.load(uid=uid)

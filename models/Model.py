@@ -98,8 +98,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
     @staticmethod
     def __build_routes__(api):
-        for model in Model.__models__:
-            model.__api__.build_routes(api=api)
+        for model in Model.h.models:
+            model.__crud__.api.build_routes(api=api)
 
     @classmethod
     def __apply__(cls, instance, config: dict, create: bool):

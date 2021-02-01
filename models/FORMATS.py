@@ -7,7 +7,7 @@ class FORMATS:
         self.customs = {}
 
     def _isModel(self, obj):
-        return obj in self.model.__models__
+        return obj in self.model.h.models
 
     # SUBFORMATS
 
@@ -46,12 +46,12 @@ class FORMATS:
     # QUERY
 
     def _parse_EAGER(self, fill: bool = False) -> Query:
-        return self.model.__attributes__.map(
+        return self.model.h.attributes.map(
             lambda attribute: (attribute.name, self._parse_EAGER_subformat(attribute, fill))
         )
 
     def _parse_LAZY(self, fill: bool = False) -> Query:
-        return self.model.__attributes__ \
+        return self.model.h.attributes \
             .map(lambda attribute: (attribute.name, self._parse_LAZY_subformat(attribute, fill)))
 
     def _parse_str(self, format: str, fill: bool = False) -> Query:
@@ -65,7 +65,7 @@ class FORMATS:
             raise Exception(f"{self.model.__name__}.__formats__ doesn't include {format}")
 
     def _parse_dict(self, format: dict, fill: bool = False) -> Query:
-        return self.model.__attributes__.map(
+        return self.model.h.attributes.map(
             lambda attribute: (attribute.name, self._parse_dict_subformat(attribute, format, fill))
         )
 

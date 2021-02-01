@@ -327,7 +327,7 @@ class CRUD(BaseCRUD):
     def get_resource(self, user, resource: BaseModel, format: dict, rights, mode: str) -> dict:
         client_data = {}
 
-        for attribute in self.model.__attributes__ \
+        for attribute in self.model.h.attributes \
                 .where(private=False) \
                 .keep(lambda a: mode == RequestMode.EAGER or not a.distant or a.on_lazy):
             try:

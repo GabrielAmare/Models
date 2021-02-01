@@ -9,7 +9,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="models-gamare",
-    version="1.0.6",
+    version="1.0.9",
     author="Gabriel Amare",
     author_email="gabriel.amare.31@gmail.com",
     description="Package to help implement complex object structures within your project",
@@ -17,7 +17,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     install_requires=requirements,
     url="https://github.com/GabrielAmare/Models",
-    packages=['models', 'models.utils'],
+    packages=['models', 'models.utils', 'models.errors', 'models.serializers'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

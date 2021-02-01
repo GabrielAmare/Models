@@ -17,7 +17,7 @@ class ForeignKey(Attribute):
         if isinstance(self.get_from, str):
             model = self.model
             assert model, self.get_from
-            result = model.__instances__.where(**{self.get_by: from_instance})
+            result = model.h.instances.where(**{self.get_by: from_instance})
             if self.multiple:
                 return result.finalize()
             else:

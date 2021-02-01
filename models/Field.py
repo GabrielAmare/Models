@@ -6,7 +6,7 @@ from .utils import Query
 from .errors import FieldError, FieldUpdateError, FieldCreateError
 from .FieldDescriptor import FieldDescriptor
 
-from .seriliazers import *
+from .serializers import *
 
 
 class FieldService:
@@ -86,7 +86,7 @@ class FieldSerializer(BaseSerializer):
 
     @staticmethod
     def parse_increment(model, name, start, step):
-        return model.__instances__.getattr(name).max(default=start) + step
+        return model.h.instances.getattr(name).max(default=start) + step
 
     @staticmethod
     def parse_default(model, default):
