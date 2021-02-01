@@ -57,6 +57,11 @@ class API(BaseAPI):
                          methods=['DELETE'])
 
     def REQUEST(self, uid, data, format):
+        if isinstance(format, str) and format[0] == '$':
+            original_format = format
+            format = self.crud.model.__load_format__(format[1:])
+            if format is None:
+                return self.error(f"The format name {original_format} haven't been found for {self.crud.model.__name__}")
         try:
             request_data = dict(user=current_user, uid=uid, data=data, format=format)
             client_data = self.crud.apply_client(**request_data)

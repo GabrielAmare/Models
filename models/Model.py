@@ -67,6 +67,13 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
             FileMgmt.save_json(f"{Model.__dbfp__}/{model.__name__}/formats/eager.json", build_EAGER_format(model))
             FileMgmt.save_json(f"{Model.__dbfp__}/{model.__name__}/formats/lazy.json", build_LAZY_format(model))
 
+    @classmethod
+    def __load_format__(cls, format):
+        try:
+            return FileMgmt.load_json(f"{Model.__dbfp__}/{cls.__name__}/formats/{format}.json")
+        except:
+            return None
+
     @staticmethod
     def setup(__dbfp__=None, __backupdir__=None, __db_errs__=None, __db_warns__=None, loadall=False):
         if __dbfp__ is not None:
