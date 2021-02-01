@@ -114,6 +114,21 @@ class Field(Attribute):
         'blake2s': hashlib.blake2s
     }
 
+    @classmethod
+    def rpy(cls, rpy: str, **config):
+        """Allow user to create a field using a rpy formatted string"""
+        fd = FieldDescriptor.from_rpy(rpy)
+        return cls(
+            name=fd.name,
+            type_=fd.type,
+            optional=fd.optional,
+            multiple=fd.multiple,
+            unique=fd.unique,
+            private=fd.private,
+            static=fd.static,
+            **config
+        )
+
     @staticmethod
     def get_model_and_instance(modelOrInstance):
         if type(modelOrInstance) is type:
