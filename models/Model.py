@@ -198,7 +198,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         return instance
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.d.items()) + ")"
+        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.to_database().items()) + ")"
 
     @classmethod
     def from_dict(cls, config):
