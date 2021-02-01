@@ -81,7 +81,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         cls.__formats__ = FORMATS(model=cls)
 
     def __new__(cls, **config):
-        uid = config.pop('uid', None)
+        uid = config.pop('uid', 0)
         instance = cls.h.get_instance(uid) if isinstance(uid, int) and uid > 0 else None
         return instance or super().__new__(cls)
 
@@ -112,7 +112,10 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         :return: The target instance
         """
         assert isinstance(instance, cls)
-        uid = config.pop('uid', 0)
+        if 'uid' in config:
+            if not create:
+                assert instance.uid == config['uid']
+                del config['uid']
 
         qfk = cls.h.foreign_keys.keep(lambda foreign_key: foreign_key.name in config).finalize(safe=True)
 
