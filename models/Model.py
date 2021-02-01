@@ -80,7 +80,8 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         cls.__crud__ = CRUD(model=cls)
         cls.__formats__ = FORMATS(model=cls)
 
-    def __new__(cls, uid=None, **config):
+    def __new__(cls, **config):
+        uid = config.pop('uid', None)
         instance = cls.h.get_instance(uid) if isinstance(uid, int) and uid > 0 else None
         return instance or super().__new__(cls)
 
@@ -102,7 +103,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
             model.__crud__.api.build_routes(api=api)
 
     @classmethod
-    def __apply__(cls, instance, config: dict, create: bool):
+    def __apply__(cls, instance, config: dict, create: bool, save: bool = False):
         """
 
         :param instance: The target instance
@@ -111,14 +112,22 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         :return: The target instance
         """
         assert isinstance(instance, cls)
+        uid = config.pop('uid', 0)
+
+        qfk = cls.h.foreign_keys.keep(lambda foreign_key: foreign_key.name in config).finalize(safe=True)
 
         # define context
         if create:
             q = cls.h.fields
             err_cls = ModelCreateError
         else:
-            q = cls.h.fields.filter(lambda field: field.name not in config).finalize(safe=True)
+            q = cls.h.fields.keep(lambda field: field.name in config).finalize(safe=True)
             err_cls = ModelUpdateError
+
+        # extracting foreign keys
+        data_fks = {}
+        for name in qfk.getattr("name"):
+            data_fks[name] = config.pop(name)
 
         # create data
         data = {}
@@ -150,6 +159,35 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
         # apply changes
         for field, value in q:
             field.set(instance, value)
+
+        # handle fks
+        for name, value in data_fks.items():
+            foreign_key = cls.h.get_foreign_key(name)
+
+            if foreign_key.multiple and hasattr(value, '__iter__'):
+                values = value
+            else:
+                values = [value]
+
+            for item in values:
+                cfg = {foreign_key.get_by: instance}
+
+                if isinstance(item, foreign_key.model):
+                    cfg.update(uid=item.uid)
+                elif isinstance(item, int):
+                    cfg.update(uid=item)
+                elif isinstance(item, dict):
+                    cfg.update(item)
+                else:
+                    raise Exception(f"Unable to parse {item}")
+
+                resource = foreign_key.model(**cfg)
+
+                if save:
+                    resource.save()
+
+        if save:
+            instance.save()
 
         # emit events
         instance.h.emit(uid=instance.uid, method="create" if create else "update", name="", value=instance)
