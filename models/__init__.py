@@ -12,7 +12,7 @@ from .Method import Method
 
 
 def uid_increment(model):
-    return max(model.__dbm__.max_uid, model.__instances__.getattr('uid').max()) + 1
+    return max(model.__dbm__.max_uid, model.h.instances.getattr('uid').filter(None).max()) + 1
 
 
-Field("uid", "int", unique=True, default=uid_increment, range=(0, float('inf')))(Model)
+Field("uid", "int", unique=True, default=uid_increment, range=(0, float('inf')), static=True)(Model)

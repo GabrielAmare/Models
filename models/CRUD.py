@@ -1,5 +1,5 @@
 import re
-from .utils import Attribute, Query
+from .utils import Attribute, Query, DebugClass
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
 from .API import API
@@ -15,20 +15,23 @@ class RightsError(Exception):
     pass
 
 
-class CRUD:
-    """Handle operations on the models using a current auth and a rights management system"""
-
+class BaseCRUD(DebugClass):
     crud_list = Query()
 
-    @staticmethod
-    def get(model):
-        return CRUD.crud_list.copy().where(model=model).first
+    @classmethod
+    def get(cls, model):
+        return cls.crud_list.copy().where(model=model).first
 
-    @staticmethod
-    def add(crud):
-        CRUD.crud_list.append(crud)
+    @classmethod
+    def add(cls, crud):
+        cls.crud_list.append(crud)
 
-    def __init__(self, model):
+
+class CRUD(BaseCRUD):
+    """Handle operations on the models using a current auth and a rights management system"""
+
+    def __init__(self, model, debug=True):
+        super().__init__(debug)
         self.model = model
 
         self.api = API(crud=self)
@@ -64,9 +67,41 @@ class CRUD:
         else:
             raise Exception(f"Incorrect uid : {repr(uid)} [{type(uid).__name__}]")
 
+    def can(self, user, mode, resource, attribute=None):
+        if not self.rights:
+            return False  # pas de droits définis
+
+        rights = self.rights.can(user, mode, resource)
+
+        if not rights:
+            return False  # pas de droits définis pour l'action sur la resource
+
+        elif not attribute:
+            return rights  # droits pour l'action sur la resource
+
+        elif isinstance(rights, dict):
+            return rights.get(attribute.name, False)  # droits pour l'action sur l'attribut
+
+        else:
+            return rights  # droits pour l'action sur l'attribut == ceux sur la resource
+
     ####################################################################################################################
     # CRUD SERVER
     ####################################################################################################################
+
+    @staticmethod
+    def get_mode(uid: int, data: dict) -> str:
+        if uid == 0:
+            return "create"
+        elif uid > 0:
+            if data:
+                return "update"
+            else:
+                return "read"
+        elif uid < 0:
+            return "delete"
+        else:
+            raise Exception(f"Invalid uid {uid} !")
 
     def apply_server(self, user, uid: int, data: dict):
         uid = CRUD.parse_uid(uid)
@@ -83,19 +118,17 @@ class CRUD:
             raise Exception(f"Invalid integer ! {uid}")
 
     def create_server(self, user, data: dict) -> BaseModel:
-        rights = self.rights and self.rights.on(user=user, action="create", resource=None)
-
-        print(rights)
+        rights = self.can(user, "create", None)
 
         if rights in (None, False):
             raise RightsError(f"You can't create {accord(self.model.__name__)}")
 
-        return self.apply_resource(user=user, uid=0, data=data, rights=rights)
+        return self.set_resource(user=user, uid=0, data=data, rights=rights)
 
     def read_server(self, user, uid: int) -> BaseModel:
         resource = self.model.__get_instance__(uid)
 
-        rights = self.rights and self.rights.on(user=user, action="read", resource=resource)
+        rights = self.can(user, "read", resource)
 
         if rights in (None, False):
             raise RightsError(f"You can't update {self.model.__name__}:{uid}")
@@ -103,19 +136,20 @@ class CRUD:
         return resource
 
     def update_server(self, user, uid: int, data: dict) -> BaseModel:
-        rights = self.rights and self.rights.on(user=user, action="update", resource=self.model.__get_instance__(uid))
+        resource = self.model.__get_instance__(uid)
+        rights = self.can(user, "update", resource)
 
         if rights in (None, False):
             raise RightsError(f"You can't update {self.model.__name__}:{uid}")
 
-        return self.apply_resource(user=user, uid=uid, data=data, rights=rights)
+        return self.set_resource(user=user, uid=uid, data=data, rights=rights)
 
     def delete_server(self, user, uid: int, mode=None):
         mode = {DeleteMode.SOFT: "soft", DeleteMode.HARD: "hard"}[self.model.__on_delete__(mode)]
 
         resource = self.model.__get_instance__(uid)
 
-        rights = self.rights and self.rights.on(user=user, action=mode + "_delete", resource=resource)
+        rights = self.can(user, mode + "_delete", resource)
 
         if rights in (None, False):
             raise RightsError(f"You can't {mode} delete {self.model.__name__}:{uid}")
@@ -141,34 +175,30 @@ class CRUD:
             raise Exception(f"Invalid integer ! {uid}")
 
     def create_client(self, user, data: dict, format: dict, mode=RequestMode.LAZY) -> dict:
-        if self.model.debug:
-            print(f"CREATE : {self.model.__name__}")
+        self.debug_message(f"CREATE : {self.model.__name__}")
         resource = self.apply_server(user=user, uid=0, data=data)
         client_data = self.read_client(user=user, uid=resource.uid, format=format, mode=mode)
         return client_data
 
     def read_client(self, user, uid: int, format: dict, mode=RequestMode.LAZY) -> dict:
-        if self.model.debug:
-            print(f"READ : {self.model.__name__}:{uid}")
+        self.debug_message(f"READ : {self.model.__name__}:{uid}")
         assert uid > 0
         resource = self.apply_server(user=user, uid=uid, data={})
 
-        rights = self.rights and self.rights.on(user=user, action="read", resource=resource)
+        rights = self.rights and self.rights.can_read(user=user, resource=resource)
 
-        client_data = self.read_resource(user=user, resource=resource, format=format, rights=rights, mode=mode)
+        client_data = self.get_resource(user=user, resource=resource, format=format, rights=rights, mode=mode)
         return client_data
 
     def update_client(self, user, uid: int, data: dict, format: dict, mode=RequestMode.LAZY) -> dict:
-        if self.model.debug:
-            print(f"UPDATE : {self.model.__name__}:{uid}")
+        self.debug_message(f"UPDATE : {self.model.__name__}:{uid}")
         assert uid > 0
         resource = self.apply_server(user=user, uid=uid, data=data)
         client_data = self.read_client(user=user, uid=resource.uid, format=format, mode=mode)
         return client_data
 
     def delete_client(self, user, uid: int) -> dict:
-        if self.model.debug:
-            print(f"DELETE : {self.model.__name__}:{uid}")
+        self.debug_message(f"DELETE : {self.model.__name__}:{uid}")
         assert uid > 0
         self.apply_server(user=user, uid=-uid, data={})
         client_data = {}
@@ -189,7 +219,7 @@ class CRUD:
     ####################################################################################################################
 
     @staticmethod
-    def apply_value(user, model, client_value) -> BaseModel:
+    def set_value(user, model, client_value) -> BaseModel:
         """
 
         :param user: The current authenticated auth
@@ -211,7 +241,7 @@ class CRUD:
             return client_value
 
     @classmethod
-    def apply_attribute(cls, user, attribute, client_value):
+    def set_attribute(cls, user, attribute, client_value):
         if not attribute.model:
             return client_value
         elif client_value is not None:
@@ -219,16 +249,16 @@ class CRUD:
                 server_value = []
                 for client_item in client_value:
                     try:
-                        server_item = cls.apply_value(user=user, model=attribute.model, client_value=client_item)
+                        server_item = cls.set_value(user=user, model=attribute.model, client_value=client_item)
                     except RightsError:
                         continue
                     if server_item is not None:
                         server_value.append(server_item)
                 return server_value
             else:
-                return cls.apply_value(user=user, model=attribute.model, client_value=client_value)
+                return cls.set_value(user=user, model=attribute.model, client_value=client_value)
 
-    def apply_resource(self, user, uid: int, data: dict, rights) -> BaseModel:
+    def set_resource(self, user, uid: int, data: dict, rights) -> BaseModel:
         """
 
         :param user: The current authenticated auth
@@ -238,10 +268,10 @@ class CRUD:
         """
         server_data = {}
         for name, client_value in data.items():
-            if attribute := self.model.__get_attribute__(name):
+            if attribute := self.model.h.get_attribute(name):
                 if self.value_right(rights=rights, name=name, value=client_value):
                     try:
-                        server_value = self.apply_attribute(user, attribute, client_value)
+                        server_value = self.set_attribute(user, attribute, client_value)
                     except RightsError:
                         continue
                     server_data[attribute.name] = server_value
@@ -249,9 +279,7 @@ class CRUD:
         if uid == 0:
             resource = self.model(**server_data).save()
         elif uid > 0:
-            resource = self.model.__get_instance__(uid)
-            if server_data:
-                resource = resource.__update__(**server_data).save()
+            resource = self.model(**server_data).save()
         else:
             resource = None
 
@@ -262,7 +290,7 @@ class CRUD:
     ####################################################################################################################
 
     @staticmethod
-    def read_value(user, value, format):
+    def get_value(user, value, format):
         if format == ".uid":
             return value.uid
         elif isinstance(format, dict):
@@ -270,7 +298,7 @@ class CRUD:
                 return value_crud.read_client(user=user, uid=value.uid, format=format, mode=RequestMode.LAZY)
 
     @classmethod
-    def read_attribute(cls, user, resource: BaseModel, attribute: Attribute, format):
+    def get_attribute(cls, user, resource: BaseModel, attribute: Attribute, format):
         value = attribute.get(resource)
         if format is None:
             return None
@@ -287,23 +315,23 @@ class CRUD:
                 result = []
                 for item in value:
                     try:
-                        item = cls.read_value(user, item, format)
+                        item = cls.get_value(user, item, format)
                     except RightsError:
                         continue
                     if item is not None:
                         result.append(item)
                 return result
             else:
-                return cls.read_value(user, value, format)
+                return cls.get_value(user, value, format)
 
-    def read_resource(self, user, resource: BaseModel, format: dict, rights, mode: str) -> dict:
+    def get_resource(self, user, resource: BaseModel, format: dict, rights, mode: str) -> dict:
         client_data = {}
 
         for attribute in self.model.__attributes__ \
                 .where(private=False) \
                 .keep(lambda a: mode == RequestMode.EAGER or not a.distant or a.on_lazy):
             try:
-                value = self.read_attribute(user, resource, attribute, format.get(attribute.name))
+                value = self.get_attribute(user, resource, attribute, format.get(attribute.name))
             except RightsError:
                 continue
 
@@ -312,3 +340,29 @@ class CRUD:
                     client_data[attribute.name] = value
 
         return client_data
+
+    ####################################################################################################################
+    # CRUD CLIENT
+    ####################################################################################################################
+
+    # def apply(self, plateform, user, uid, data, format):
+    #     uid = CRUD.parse_uid(uid=uid)
+    #     mode = CRUD.get_mode(uid=uid, data=data)
+    #     if mode == "create":
+    #         return self.create(plateform=plateform, user=user, data=data, format=format)
+    #     elif mode == "read":
+    #         return self.read(plateform=plateform, user=user, uid=uid, format=format)
+    #     elif mode == "update":
+    #         return self.update(plateform=plateform, user=user, uid=uid, data=data, format=format)
+    #     elif mode == "delete":
+    #         return self.delete(plateform=plateform, user=user, uid=-uid)
+    #     else:
+    #         raise Exception(f"Invalid mode {mode} !")
+    #
+    # def create(self, plateform, user, data, format):
+    #     if plateform == "client":
+    #         return self.create_client(user, data, format)
+    #     elif plateform == "server":
+    #         return self.create_server(user, data)
+    #     else:
+    #         raise Exception(f"Invalid plateform {plateform} !")

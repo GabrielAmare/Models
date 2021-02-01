@@ -1,47 +1,92 @@
-import re
+import hashlib
 from datetime import datetime, date
 from .utils import Attribute
 from .Model import Model
-
+from .utils import Query
+from .errors import FieldError, FieldUpdateError, FieldCreateError
 from .FieldDescriptor import FieldDescriptor
 
-regex_int = re.compile(r'^[0-9]+$')
-regex_float = re.compile(r"^-?([0-9]+\.[0-9]*|\.[0-9]+|inf)$")
+from .seriliazers import *
 
 
-class FieldParsing:
+class FieldService:
+    @classmethod
+    def as_model(cls, model, value) -> Model:
+        """Given any `value`, try to cast it as a `model` instance"""
+        if isinstance(value, int):
+            instance = model.load(value)
+        elif isinstance(value, str) and IntSerializer.regex.match(value):
+            instance = model.load(int(value))
+        elif isinstance(value, dict):
+            instance = model.from_dict(value)
+        elif isinstance(value, model):
+            instance = value
+        else:
+            raise Exception(f"Can't serialize {value} to a {model.__name__} !")
+
+        assert isinstance(instance, model)
+        return instance
+
+    @classmethod
+    def as_uid(cls, model, value) -> int:
+        """Given any `value`, try to cast it as a `uid` corresponding to a `model` instance"""
+        if isinstance(value, int):
+            uid = value
+        elif isinstance(value, str) and IntSerializer.regex.match(value):
+            uid = int(value)
+        elif isinstance(value, model):
+            uid = value.uid
+        elif isinstance(value, dict):
+            uid = cls.as_uid(model, value.get('uid'))
+        else:
+            raise Exception(f"Can't serialize {value} to a {model.__name__} uid !")
+
+        assert isinstance(uid, int)
+        return uid
+
+
+class FieldSerializer(BaseSerializer):
+    @classmethod
+    def serialize(cls, value, dtype, format=None):
+        assert isinstance(value, dtype), f"{value.__class__.__name__} not {dtype.__name__}"
+        if dtype is datetime:
+            return DateTimeSeriliazer.serialize(value)
+        elif dtype is date:
+            return DateSeriliazer.serialize(value)
+        elif dtype is int:
+            return IntSerializer.serialize(value)
+        elif dtype is float:
+            return FloatSerializer.serialize(value)
+        elif dtype is bool:
+            return BoolSerializer.serialize(value)
+        elif issubclass(dtype, Model):
+            return ModelSeriliazer.serialize(value, dtype, format)
+        else:
+            return value
+
+    @classmethod
+    def deserialize(cls, value, dtype):
+        try:
+            if dtype is datetime:
+                return DateTimeSeriliazer.deserialize(value)
+            elif dtype is date:
+                return DateSeriliazer.deserialize(value)
+            elif dtype is int:
+                return IntSerializer.deserialize(value)
+            elif dtype is float:
+                return FloatSerializer.deserialize(value)
+            elif dtype is bool:
+                return BoolSerializer.deserialize(value)
+            elif issubclass(dtype, Model):
+                return ModelSeriliazer.deserialize(value, dtype)
+            else:
+                return value
+        except:
+            return value
+
     @staticmethod
     def parse_increment(model, name, start, step):
         return model.__instances__.getattr(name).max(default=start) + step
-
-    @staticmethod
-    def parse_int(value):
-        if isinstance(value, int):
-            return value
-        elif isinstance(value, str) and regex_int.match(value):
-            return int(value)
-        else:
-            return value
-
-    @staticmethod
-    def parse_float(value):
-        if isinstance(value, float):
-            return value
-        elif isinstance(value, str) and regex_float.match(value):
-            return int(value)
-        else:
-            return value
-
-    @staticmethod
-    def parse_bool(value):
-        if isinstance(value, bool):
-            return value
-        elif isinstance(value, str) and value in ('True', 'true'):
-            return True
-        elif isinstance(value, str) and value in ('False', 'false'):
-            return False
-        else:
-            return value
 
     @staticmethod
     def parse_default(model, default):
@@ -49,46 +94,6 @@ class FieldParsing:
             return default(model)
         else:
             return default
-
-    @staticmethod
-    def parse_model(model, value):
-        if isinstance(value, model):
-            return value
-
-        # try to acquire uid if specified
-        if isinstance(value, int):  # get by uid
-            uid = value
-        elif isinstance(value, str) and regex_int.match(value):  # get by string uid
-            uid = int(value)
-        elif isinstance(value, dict):  # get by dict (or uid)
-            uid = value.get('uid')
-        else:
-            uid = None
-
-        # try to acquire instance if it exists or create if not
-        if uid is None:
-            if isinstance(value, dict):
-                # TODO : remove because it's unsafe to create automatically instances that way
-                return model.from_dict(value)
-            else:
-                return value
-
-        instance = model.__instances__.where(uid=uid).first
-
-        if not instance:
-            instance = model.load(uid=uid)
-
-        # return the instance
-        if not instance:
-            return value
-
-        if isinstance(value, dict):
-            instance.__update__(**value)
-
-        return instance
-
-
-import hashlib
 
 
 class Field(Attribute):
@@ -149,7 +154,7 @@ class Field(Attribute):
             unique=unique,
             private=private,
             static=static,
-            # ADDS
+            # FIELD
             range=range,
             length=length,
             default=default,
@@ -184,7 +189,7 @@ class Field(Attribute):
         :param instance: the instance to get the value from
         :return: the value associated with the field
         """
-        return instance.__data__.get(self.name)
+        return instance.d.get(self.name)
 
     def set(self, instance, value):
         """
@@ -193,8 +198,9 @@ class Field(Attribute):
         :param value: the value to be set
         :return: None
         """
-        instance.__data__[self.name] = value
-        instance.__emit__(self.name, "set", value)
+        assert isinstance(instance, Model)
+        instance.d[self.name] = value
+        instance.h.emit(uid=instance.uid, method="set", name=self.name, value=value)
 
     def append(self, instance, item):
         """
@@ -204,8 +210,9 @@ class Field(Attribute):
         :return: None
         """
         assert self.multiple
-        instance.__data__[self.name].append(item)
-        instance.__emit__(self.name, "append", item)
+        assert isinstance(instance, Model)
+        instance.d[self.name].append(item)
+        instance.h.emit(uid=instance.uid, method="append", name=self.name, value=item)
 
     def remove(self, instance, item):
         """
@@ -215,89 +222,94 @@ class Field(Attribute):
         :return: None
         """
         assert self.multiple
-        instance.__data__[self.name].append(item)
-        instance.__emit__(self.name, "remove", item)
+        assert isinstance(instance, Model)
+        instance.d[self.name].append(item)
+        instance.h.emit(uid=instance.uid, method="remove", name=self.name, value=item)
 
     @property
     def model(self):
         """Works only when the field is connected to a Model subclass"""
-        return Model.__get_model__(self.type_)
+        return Model.h.get_model(self.type_)
 
     @property
     def dtype(self):
         """Works on every fields, return the expected type of data"""
         return self.model or eval(self.type_)
 
-    def parse(self, modelOrInstance, value):
-        model, instance = self.get_model_and_instance(modelOrInstance)
+    def parse(self, model, instance, value):
+        return self.deserialize(value, model)
 
-        if value is None and self.increment:  # parse with auto-increment
-            return FieldParsing.parse_increment(model, self.name, *self.increment)
-        elif value is None and self.default is not None:  # parse with default value or function
-            return FieldParsing.parse_default(model, self.default)
-        elif self.type_ == "int":  # parse as integer
-            return FieldParsing.parse_int(value)
-        elif self.type_ == "float":  # parse as decimal
-            return FieldParsing.parse_float(value)
-        elif self.type_ == "bool":  # parse as boolean
-            return FieldParsing.parse_bool(value)
-        elif self.model:  # parse as model instance
-            return FieldParsing.parse_model(self.model, value)
-        else:  # no parsing
-            return value
+    def check(self, model, instance, value, create: bool) -> FieldError:
+        config = dict(model=model, instance=instance, field=self, value=value, create=create)
+        errors = self.__descriptor__.checks.call(**config).filter(None).list()
+        err_cls = FieldCreateError if create else FieldUpdateError
+        return err_cls(self, errors)
 
-    def check(self, modelOrInstance, value, mode) -> list:
-        assert mode in ('create', 'update')
-        model, instance = self.get_model_and_instance(modelOrInstance)
+    def parse_and_check(self, modelOrInstance, value, mode):
+        field_value = self.parse(modelOrInstance, value)
+        field_errors = self.check(modelOrInstance, field_value, mode)
+        return field_value, field_errors
 
-        errors = []
+    ####################################################################################################################
+    # SERIALIZATION
+    ####################################################################################################################
 
-        for check in self.__descriptor__.__checks__:
-            if error := check(model=model, instance=instance, field=self, value=value, mode=mode):
-                errors.append(error)
+    def _deserialize(self, value, model=None):
+        """For a given value, try to return a parsed version corresponding to the field value format"""
+        if value is None:
+            if self.optional:
+                return None
 
-        return errors
+            if model:
+                if self.increment:
+                    return FieldSerializer.parse_increment(model, self.name, *self.increment)
+                elif self.default is not None:
+                    return FieldSerializer.parse_default(model, self.default)
 
-    def uid_to_model(self, value):
-        if isinstance(value, int):
-            result = self.model.load(value)
-        elif isinstance(value, str) and regex_int.match(value):
-            result = self.model.load(int(value))
-        elif isinstance(value, dict):
-            result = self.model.from_dict(value)
-        elif isinstance(value, self.model):
-            result = value
+        return FieldSerializer.deserialize(value, self.dtype)
+
+    def deserialize(self, value, model=None):
+        """Parse the `value` received to the expected value for the field"""
+        func = lambda obj: self._deserialize(obj, model)
+
+        if self.multiple:
+            values = ListSerializer.deserialize(value)
+            return Query(values).map(func).filter(None).list()
         else:
-            raise Exception(f"Can't serialize {value} to server !")
-        assert isinstance(result, self.model)
-        return result
+            return func(value)
 
-    def model_to_uid(self, value) -> int:
-        if isinstance(value, int):
-            result = value
-        elif isinstance(value, str) and regex_int.match(value):
-            result = int(value)
-        elif isinstance(value, self.model):
-            result = value.uid
-        elif isinstance(value, dict):
-            return self.model_to_uid(value.get('uid'))
+    def _serialize(self, value, dtype, format=True):
+        if value is None:
+            return None
         else:
-            raise Exception(f"Can't serialize {value} to database !")
-        # assert isinstance(result, int)
-        return result
+            return FieldSerializer.serialize(value, dtype, format)
+
+    def serialize(self, value, format=True):
+        if not format:
+            return None
+
+        dtype = self.dtype
+        func = lambda obj: self._serialize(obj, dtype, format)
+
+        if self.multiple:
+            values = ListSerializer.serialize(value)
+            return Query(values).map(func).filter(None).list() or None
+        else:
+            return func(value)
 
     ####################################################################################################################
     # DATABASE SERIALIZING
     ####################################################################################################################
 
     def from_database(self, data):
+        # return self.deserialize(data)
         if self.model:
             if data is None:
                 return None
             elif not self.multiple:
-                return self.uid_to_model(data)
+                return FieldService.as_model(self.model, data)
             elif hasattr(data, '__iter__'):
-                return list(map(self.uid_to_model, data))
+                return [FieldService.as_model(self.model, item) for item in data]
             else:
                 raise Exception(f"Can't serialize {data} from database !")
         elif self.type_ == "datetime" and isinstance(data, str):
@@ -308,13 +320,14 @@ class Field(Attribute):
             return data
 
     def to_database(self, data):
+        # return self.serialize(data)
         if self.model:
             if data is None:
                 return None
             elif not self.multiple:
-                return self.model_to_uid(data)
+                return FieldService.as_uid(self.model, data)
             elif hasattr(data, '__iter__'):
-                return [self.model_to_uid(item) for item in data if item is not None]
+                return [FieldService.as_uid(self.model, item) for item in data if item is not None]
             else:
                 raise Exception(f"Can't serialize {data} to database !")
         elif isinstance(data, datetime):
@@ -333,9 +346,9 @@ class Field(Attribute):
             if data is None:
                 return None
             elif not self.multiple:
-                return self.uid_to_model(data)
+                return FieldService.as_model(self.model, data)
             elif hasattr(data, '__iter__'):
-                return list(map(self.uid_to_model, data))
+                return [FieldService.as_model(self.model, item) for item in data]
             else:
                 raise Exception(f"Can't serialize {data} from server !")
         elif self.type_ == "datetime" and isinstance(data, str):
@@ -359,9 +372,9 @@ class Field(Attribute):
             if data is None:
                 return None
             elif not self.multiple:
-                return self.uid_to_model(data)
+                return FieldService.as_uid(self.model, data)
             elif hasattr(data, '__iter__'):
-                return [self.uid_to_model(item) for item in data if item is not None]
+                return [FieldService.as_uid(self.model, item) for item in data if item is not None]
             else:
                 raise Exception(f"Can't serialize {data} to server !")
         else:
@@ -376,9 +389,9 @@ class Field(Attribute):
             if data is None:
                 return None
             elif not self.multiple:
-                return self.uid_to_model(data)
+                return FieldService.as_model(self.model, data)
             elif hasattr(data, '__iter__'):
-                return list(map(self.uid_to_model, data))
+                return [FieldService.as_model(self.model, item) for item in data]
             else:
                 raise Exception(f"Can't serialize {data} from client !")
         elif self.type_ == "datetime" and isinstance(data, str):
@@ -393,9 +406,9 @@ class Field(Attribute):
             if data is None:
                 return None
             elif not self.multiple:
-                return self.model_to_uid(data)
+                return FieldService.as_uid(self.model, data)
             elif hasattr(data, '__iter__'):
-                return [self.model_to_uid(item) for item in data if item is not None]
+                return [FieldService.as_uid(self.model, item) for item in data if item is not None]
             else:
                 raise Exception(f"Can't serialize {data} to client !")
         elif isinstance(data, datetime):

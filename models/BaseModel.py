@@ -1,4 +1,4 @@
-from .utils import Query, EventManager, ModelHandler
+from .utils import EventManager, ModelHandler
 from .DatabaseManager import DatabaseManager
 
 
@@ -17,10 +17,6 @@ class RequestMode:
 
 class BaseModel:
     """
-        __models__ <-> Tables
-        __attributes__ <-> Columns
-        __instances__ <-> Rows
-
         __delete_mode__ :
             INHERIT    => inherit deletion mode from super
             SOFT       => force soft delete
@@ -28,6 +24,9 @@ class BaseModel:
             ALLOW_HARD => soft delete by default but allow hard delete
             ALLOW_SOFT => hard delete by default but allow soft delete
     """
+    h: ModelHandler
+    d: dict
+
     __dbm__: DatabaseManager
     __delete_mode__ = DeleteMode.ALLOW_HARD
 
@@ -83,19 +82,8 @@ class BaseModel:
                 for attribute in mro.h.attributes:
                     cls.h.add_attribute(attribute)
 
-        cls.__attributes__ = cls.h.attributes  # deprecated
-        cls.__fields__ = cls.h.fields  # deprecated
-        cls.__foreign_keys__ = cls.h.foreign_keys  # deprecated
-        cls.__methods__ = cls.h.methods  # deprecated
-        cls.__instances__ = cls.h.instances  # deprecated
-        cls.__get_attribute__ = cls.h.get_attribute  # deprecated
-        cls.__add_attribute__ = cls.h.add_attribute  # deprecated
-        cls.__get_instance__ = cls.h.get_instance  # deprecated
-        cls.__add_instance__ = cls.h.add_instance  # deprecated
-        cls.__del_instance__ = cls.h.del_instance  # deprecated
-
     def __getattribute__(self, name: str):
-        if name.startswith('__') and name.endswith('__') or name in ['h']:
+        if name.startswith('__') and name.endswith('__') or name in ['h', 'd']:
             return super().__getattribute__(name)
         elif attribute := self.h.get_attribute(name):
             return attribute.get(self)
@@ -103,7 +91,9 @@ class BaseModel:
             return super().__getattribute__(name)
 
     def __setattr__(self, name, value):
-        if attribute := self.h.get_attribute(name):
+        if name.startswith('__') and name.endswith('__') or name in ['h', 'd']:
+            super().__setattr__(name, value)
+        elif attribute := self.h.get_attribute(name):
             attribute.set(self, value)
         else:
             super().__setattr__(name, value)
@@ -112,12 +102,3 @@ class BaseModel:
 ModelHandler.base_model = BaseModel
 
 BaseModel.h = ModelHandler(BaseModel)
-BaseModel.__models__ = ModelHandler.models  # deprecated
-BaseModel.__get_model__ = ModelHandler.get_model  # deprecated
-BaseModel.__add_model__ = ModelHandler.add_model  # deprecated
-
-BaseModel.__attributes__ = BaseModel.h.attributes  # deprecated
-BaseModel.__instances__ = BaseModel.h.instances  # deprecated
-BaseModel.__fields__ = BaseModel.h.fields  # deprecated
-BaseModel.__foreign_keys__ = BaseModel.h.foreign_keys  # deprecated
-BaseModel.__methods__ = BaseModel.h.methods  # deprecated

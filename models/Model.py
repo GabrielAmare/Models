@@ -3,25 +3,14 @@ import os
 import sys
 import shutil
 import datetime
-from .utils import ConfigError, Query
+
+from .errors import ModelCreateError, ModelUpdateError
+from .utils import Query
 
 from .BaseModel import BaseModel, DeleteMode, RequestMode
 from .BaseRights import BaseRights
 from .CRUD import CRUD
-
-
-def lock(method):
-    """
-        This method locks itself on the first call, this can handle only 1 method by class
-        if multiple methods are locks, the first one to be calle will lock the other ones
-    """
-
-    def locked_method(self, *args, **kwargs):
-        if not hasattr(self, '_lock'):
-            self._lock = True
-            method(self, *args, **kwargs)
-
-    return locked_method
+from .FORMATS import FORMATS
 
 
 class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
@@ -42,32 +31,31 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
             Model.__db_warns__ = bool(__db_warns__)
 
         if not os.path.exists(Model.__dbfp__):
-            N = max(5, max(len(model.__name__) for model in Model.__models__))
+            N = Model.h.models.getattr('__name__').map(len).max(default=5)
 
             path = os.path.abspath(Model.__dbfp__)
-            print(f"DATABASE(Model)".ljust(10 + N) + " : mkdir {path}")
+            print(f"DATABASE(Model)".ljust(10 + N) + f" : mkdir {path}")
             os.mkdir(path)
 
-            for model in Model.__models__:
-                if not model.__dbm__.exists():
-                    path = os.path.abspath(model.__dbm__.filepath())
-                    print(f"DATABASE({model.__name__})".ljust(10 + N) + " : mkdir {path}")
-                    model.__dbm__.mkdir()
+            for model in Model.h.models.filter(lambda model: model.__dbm__.exists()):
+                path = os.path.abspath(model.__dbm__.filepath())
+                print(f"DATABASE({model.__name__})".ljust(10 + N) + f" : mkdir {path}")
+                model.__dbm__.mkdir()
 
         if loadall:
             Model.loadall()
 
     @staticmethod
     def show_models():
-        for model in Model.__models__:
+        for model in Model.h.models:
             print(model.__rpy__())
             print()
 
     @staticmethod
     def show_instances():
-        for model in Model.__models__:
+        for model in Model.h.models:
             print(model.__name__ + ":")
-            for instance in model.__instances__:
+            for instance in model.h.instances:
                 print("   ", instance)
             print()
 
@@ -78,152 +66,121 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
 
     __rights__: BaseRights = None
     __crud__: CRUD = None
+    __formats__: FORMATS = None
 
-    __data__: dict
+    d: dict
 
     @classmethod
     def __rpy__(cls):
-        return f"{cls.__name__}:\n" + "\n".join(f"    {attribute.__rpy__()}" for attribute in cls.__attributes__)
+        return f"{cls.__name__}:\n" + "\n".join(f"    {attribute.__rpy__()}" for attribute in cls.h.attributes)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
         cls.__crud__ = CRUD(model=cls)
+        cls.__formats__ = FORMATS(model=cls)
 
-    def __new__(cls, **config):
-        if (uid := config.get('uid')) is not None:
-            if instance := cls.__get_instance__(uid):
-                instance.__update__(**config)
-                return instance
-        return super().__new__(cls)
+    def __new__(cls, uid=None, **config):
+        instance = cls.h.get_instance(uid) if isinstance(uid, int) and uid > 0 else None
+        return instance or super().__new__(cls)
 
-    @lock
     def __init__(self, **config):
-        self.__data__ = {}
+        if hasattr(self, 'd'):
+            self.__class__.__apply__(instance=self, config=config, create=False)
+        else:
+            self.d = {}
+            self.__class__.__apply__(instance=self, config=config, create=True)
+            self.h.add_instance(self)
 
-        self.__create__(**config)
-
-        self.__add_instance__(self)
+    def __call__(self, **config):
+        self.__class__.__apply__(instance=self, config=config, create=False)
+        return self
 
     @staticmethod
     def __build_routes__(api):
         for model in Model.__models__:
             model.__api__.build_routes(api=api)
 
-    ####################################################################################################################
-    # EVENTS
-    ####################################################################################################################
+    @classmethod
+    def __apply__(cls, instance, config: dict, create: bool):
+        """
 
-    def __emit__(self, name, method, value):
-        return Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/{method}/{name}", value)
+        :param instance: The target instance
+        :param config: The data to apply
+        :param create: True -> create mode, False -> update mode
+        :return: The target instance
+        """
+        assert isinstance(instance, cls)
 
-    def __on__(self, name, method, callback):
-        return Model.__events__.on(f"{self.__class__.__name__}/{self.uid}/{method}/{name}", callback)
+        # define context
+        if create:
+            q = cls.h.fields
+            err_cls = ModelCreateError
+        else:
+            q = cls.h.fields.filter(lambda field: field.name not in config).finalize(safe=True)
+            err_cls = ModelUpdateError
 
-    ####################################################################################################################
-    # CREATE
-    ####################################################################################################################
+        # create data
+        data = {}
+        for name in q.getattr('name'):
+            data[name] = config.pop(name, None)
 
-    def __create_configs__(self, config):
-        config_errors = {}
-        parsed_config = {}
-        # TODO : check this part with the new attribute class (maybe check when it needs to be set or not)
-        for attribute in self.__attributes__.where(distant=False):
-            value = config.get(attribute.name)
-
-            parsed_value = attribute.parse(self, value)
-            field_errors = attribute.check(self, parsed_value, mode='create')
-
-            parsed_config[attribute.name] = parsed_value
-            config_errors[attribute.name] = field_errors
-
-        return parsed_config, config_errors
-
-    def __create_errors__(self, config_errors):
-        if any(field_errors for field_errors in config_errors.values()):
-            error = ConfigError(self.__class__, config_errors)
-            if self.__class__.debug:
+        # check unparsed values
+        if config:
+            error = Exception(f"Remaining keys in config : " + ", ".join(map(repr, config.keys())))
+            if cls.debug:
                 print(error, file=sys.stderr)
             else:
                 raise error
 
-    def __create_apply__(self, parsed_config):
-        for name, value in parsed_config.items():
-            if attribute := self.__attributes__.where(name=name, distant=False).first:
-                attribute.set(self, value)
+        # parse values
+        q = q.map(lambda field: (field, field.parse(cls, instance, data[field.name]))).finalize(safe=True)
 
-    def __create__(self, **config):
-        parsed_config, config_errors = self.__create_configs__(config)
+        # parse errors
+        errors = q.smap(lambda field, value: field.check(cls, instance, value, create)).list()
+        error = err_cls(cls, errors)
 
-        self.__create_errors__(config_errors)
-
-        self.__create_apply__(parsed_config)
-
-        Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/create", self)
-
-    ####################################################################################################################
-    # UPDATE
-    ####################################################################################################################
-
-    def __update_configs__(self, config):
-        config_errors = {}
-        parsed_config = {}
-        # TODO : check this part with the new attribute class (maybe check when it needs to be set or not)
-        for name, value in config.items():
-            if (attribute := self.__get_attribute__(name)) and not attribute.distant:
-                parsed_value = attribute.parse(self, value)
-                field_errors = attribute.check(self, parsed_value, mode='update')
-
-                parsed_config[attribute.name] = parsed_value
-                config_errors[attribute.name] = field_errors
-
-        return parsed_config, config_errors
-
-    def __update_errors__(self, config_errors):
-        if any(field_errors for field_errors in config_errors.values()):
-            error = ConfigError(self.__class__, config_errors)
-            if self.__class__.debug:
+        # handle error
+        if error:
+            if cls.debug:
                 print(error, file=sys.stderr)
             else:
                 raise error
 
-    def __update_apply__(self, parsed_config):
-        for name, value in parsed_config.items():
-            if attribute := self.__attributes__.where(name=name, distant=False).first:
-                attribute.set(self, value)
+        # apply changes
+        for field, value in q:
+            field.set(instance, value)
 
-    def __update__(self, **config):
-        parsed_config, config_errors = self.__update_configs__(config)
+        # emit events
+        instance.h.emit(uid=instance.uid, method="create" if create else "update", name="", value=instance)
 
-        self.__update_errors__(config_errors)
-
-        self.__update_apply__(parsed_config)
-
-        Model.__events__.emit(f"{self.__class__.__name__}/{self.uid}/update", self)
-
-        return self
+        return instance
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + ", ".join(
-            f"{key}={repr(val)}" for key, val in self.to_database(self.__data__).items()) + ")"
+        return self.__class__.__name__ + "(" + ", ".join(f"{key}={repr(val)}" for key, val in self.d.items()) + ")"
 
     @classmethod
     def from_dict(cls, config):
+        # we remove the foreign keys from the config
+        for foreign_key in cls.h.foreign_keys:
+            if foreign_key.name in config:
+                value = config.pop(foreign_key.name)
+
         return cls(**config)
 
     def to_dict(self, mode=RequestMode.LAZY, safe=False):
         config = {}
-        for attribute in self.__attributes__.where(distant=False):
-            if safe or not attribute.private:
-                value = attribute.get(self)
+        for field in self.h.fields:
+            if safe or not field.private:
+                value = field.get(self)
 
                 if isinstance(value, Model):
                     value = value.uid
 
                 if value is not None:
-                    config[attribute.name] = value
+                    config[field.name] = value
 
-        for attribute in self.__attributes__.where(distant=True):
+        for attribute in self.h.attributes.where(distant=True):
             if attribute.on_lazy or mode == RequestMode.EAGER:
                 value = attribute.get(self)
                 if isinstance(value, Query):
@@ -249,7 +206,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def load(cls, uid: int, force_reload: bool = False):
         if not force_reload:
-            if instance := cls.__instances__.where(uid=uid).first:
+            if instance := cls.h.get_instance(uid):
                 return instance
         database_data = cls.__dbm__.read(uid)
         server_data = cls.from_database(database_data)
@@ -258,7 +215,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def loadall(cls, force_reload: bool = False):
         if cls is Model:
-            for model in Model.__models__.sorted(lambda model: model.__level__()):
+            for model in Model.h.models.sorted(lambda model: model.__level__()):
                 print(f'Loading : {model.__name__}')
                 model.loadall()
         else:
@@ -267,17 +224,17 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def saveall(cls):
         if cls is Model:
-            for model in Model.__models__:
+            for model in Model.h.models:
                 model.saveall()
         else:
-            for instance in cls.__instances__:
+            for instance in cls.h.instances:
                 instance.save()
 
     def delete(self, soft=False):
         self.__dbm__.delete(self.uid, soft=soft)
 
-        if self in self.__class__.__instances__:
-            self.__class__.__instances__.remove(self)
+        if self in self.h.instances:
+            self.h.instances.remove(self)
 
     @classmethod
     def restore(cls, uid: int):
@@ -303,21 +260,21 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     def to_database(cls, server_data: dict) -> dict:
         """Map a dict containing server typed data into a dict containing database typed data"""
         database_data = {}
-        for attribute in cls.__attributes__.where(distant=False):
-            server_value = server_data.get(attribute.name)
-            database_value = attribute.to_database(server_value)
+        for field in cls.h.fields:
+            server_value = server_data.get(field.name)
+            database_value = field.to_database(server_value)
             if database_value is not None:
-                database_data[attribute.name] = database_value
+                database_data[field.name] = database_value
         return database_data
 
     @classmethod
     def from_database(cls, database_data: dict) -> dict:
         server_data = {}
-        for attribute in cls.__attributes__.where(distant=False):
-            database_value = database_data.get(attribute.name)
-            server_value = attribute.from_database(database_value)
+        for field in cls.h.fields:
+            database_value = database_data.get(field.name)
+            server_value = field.from_database(database_value)
             if server_value is not None:
-                server_data[attribute.name] = server_value
+                server_data[field.name] = server_value
         return server_data
 
     ####################################################################################################################
@@ -328,7 +285,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     def to_server(cls, server_data: dict, mode=RequestMode.LAZY) -> dict:
         """Map a dict containing server typed data into a dict containing database typed data"""
         final_data = {}
-        for attribute in cls.__attributes__:
+        for attribute in cls.h.attributes:
             if not attribute.private:
                 if not attribute.distant or attribute.on_lazy or mode == RequestMode.EAGER:
                     server_value = server_data.get(attribute.name)
@@ -340,11 +297,11 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def from_server(cls, server_data: dict) -> dict:
         final_data = {}
-        for attribute in cls.__attributes__.where(distant=False):
-            client_value = server_data.get(attribute.name)
-            server_value = attribute.from_server(client_value)
+        for field in cls.h.fields:
+            client_value = server_data.get(field.name)
+            server_value = field.from_server(client_value)
             if server_value is not None:
-                final_data[attribute.name] = server_value
+                final_data[field.name] = server_value
         return final_data
 
     ####################################################################################################################
@@ -355,7 +312,7 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     def to_client(cls, server_data: dict, mode=RequestMode.LAZY) -> dict:
         """Map a dict containing server typed data into a dict containing database typed data"""
         client_data = {}
-        for attribute in cls.__attributes__:
+        for attribute in cls.h.attributes:
             if not attribute.private:
                 if not attribute.distant or attribute.on_lazy or mode == RequestMode.EAGER:
                     server_value = server_data.get(attribute.name)
@@ -367,13 +324,13 @@ class Model(BaseModel, abstract=True, delete_mode=DeleteMode.ALLOW_HARD):
     @classmethod
     def from_client(cls, client_data: dict) -> dict:
         server_data = {}
-        for attribute in cls.__attributes__.where(distant=False):
-            client_value = client_data.get(attribute.name)
-            server_value = attribute.from_client(client_value)
+        for field in cls.h.fields:
+            client_value = client_data.get(field.name)
+            server_value = field.from_client(client_value)
             if server_value is not None:
-                server_data[attribute.name] = server_value
+                server_data[field.name] = server_value
         return server_data
 
     @classmethod
     def __level__(cls):
-        return cls.__attributes__.where(distant=False).getattr('__level__').max(default=-1) + 1
+        return cls.h.fields.getattr('__level__').max(default=-1) + 1

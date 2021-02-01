@@ -19,20 +19,20 @@ class BaseRights:
     _hard_delete = False
     _restore = False
 
-    @classmethod
+    @classmethod  # TO REMOVE
     def isUnknown(cls, user):
         return not user or user.is_anonymous
 
-    @classmethod
+    @classmethod  # TO REMOVE
     def isSelf(cls, user, resource):
         return not cls.isUnknown(
             user) and resource and resource.__class__.__name__ == "User" and user.uid == resource.uid
 
-    @classmethod
+    @classmethod  # TO REMOVE
     def isMember(cls, user):
         return not cls.isUnknown(user) and hasattr(user, 'role') and user.role == "MEMBER"
 
-    @classmethod
+    @classmethod  # TO REMOVE
     def isAdmin(cls, user):
         return not cls.isUnknown(user) and hasattr(user, 'role') and user.role == "ADMIN"
 

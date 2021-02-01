@@ -1,4 +1,5 @@
 from .AttributeDescriptor import AttributeDescriptor
+from .utils import Query
 
 
 class FieldCheck:
@@ -19,12 +20,12 @@ class FieldCheck:
 
     @staticmethod
     def is_unique(model, instance, field, value, **_):
-        if model.__instances__.where(**{field.name: value}).first not in (None, instance):
+        if model.h.instances.where(**{field.name: value}).first not in (None, instance):
             return f"Value already existing in the column : {value}"
 
     @staticmethod
-    def is_static(mode, **_):
-        if mode == 'update':
+    def is_static(create, **_):
+        if not create:
             return f"The value can't be modified (static field)"
 
     @staticmethod
@@ -61,7 +62,7 @@ class FieldDescriptor(AttributeDescriptor):
         self.values = values
         self.increment = increment
 
-        self.__checks__ = list(self.init_checks())
+        self.checks = Query(data=list(self.init_checks()), safe=True)
 
     def init_checks(self):
         """

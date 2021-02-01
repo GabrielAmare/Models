@@ -30,7 +30,7 @@ class ModelSeriliazer(BaseSerializer):
                 return value
 
             if isinstance(value, dict):
-                instance.__update__(**value)
+                return dtype(**value)
 
             return instance
         except Exception as e:

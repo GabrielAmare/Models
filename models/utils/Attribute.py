@@ -14,7 +14,7 @@ class Attribute:
         raise NotImplementedError
 
     def __call__(self, model):
-        model.__attributes__.append(self)
+        model.h.attributes.append(self)
         return model
 
     @property
