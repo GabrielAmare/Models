@@ -6,6 +6,19 @@ from .ForeignKeyDescriptor import ForeignKeyDescriptor
 class ForeignKey(Attribute):
     distant = True
 
+    @classmethod
+    def rpy(cls, rpy: str, **config):
+        """Allow user to create a field using a rpy formatted string"""
+        fd = ForeignKeyDescriptor.from_rpy(rpy)
+        return cls(
+            name=fd.name,
+            type=fd.type,
+            optional=fd.optional,
+            multiple=fd.multiple,
+            private=fd.private,
+            **config
+        )
+
     def __rpy__(self):
         return self.__descriptor__.to_rpy()
 
