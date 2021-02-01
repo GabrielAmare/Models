@@ -11,7 +11,7 @@ class ForeignKey(Attribute):
 
     @property
     def model(self):
-        return Model.__get_model__(self.get_from)
+        return Model.h.get_model(self.get_from)
 
     def get(self, from_instance):
         if isinstance(self.get_from, str):
