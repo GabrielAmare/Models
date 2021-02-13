@@ -38,10 +38,6 @@ class BaseAPI(DebugClass):
     def error(cls, message):
         return cls.response(status="error", message=message)
 
-    def debug_message(self, message):
-        if self.debug:
-            print(f"[{self.__class__.__name__}] {message}")
-
 
 class API(BaseAPI):
     def __init__(self, crud, debug=True):
@@ -50,11 +46,11 @@ class API(BaseAPI):
 
     def build_routes(self, api):
         name = self.crud.model.__name__.lower()
-        api.add_url_rule(rule=f"/json/{name}/new", endpoint=f"POST_{name}", view_func=self.POST, methods=['POST'])
-        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"GET_{name}", view_func=self.GET, methods=['GET'])
-        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"PUT_{name}", view_func=self.PUT, methods=['PUT'])
-        api.add_url_rule(rule=f"/json/{name}/<uid>", endpoint=f"DELETE_{name}", view_func=self.DELETE,
-                         methods=['DELETE'])
+        base = f"/json/{name}"
+        api.add_url_rule(rule=f"{base}/new", endpoint=f"POST_{name}", view_func=self.POST, methods=['POST'])
+        api.add_url_rule(rule=f"{base}/<uid>", endpoint=f"GET_{name}", view_func=self.GET, methods=['GET'])
+        api.add_url_rule(rule=f"{base}/<uid>", endpoint=f"PUT_{name}", view_func=self.PUT, methods=['PUT'])
+        api.add_url_rule(rule=f"{base}/<uid>", endpoint=f"DELETE_{name}", view_func=self.DELETE, methods=['DELETE'])
 
     def REQUEST(self, uid, data, format):
         if isinstance(format, str) and format[0] == '$':
