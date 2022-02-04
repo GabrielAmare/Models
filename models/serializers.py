@@ -47,8 +47,9 @@ class Server:
             if field.datatype is Type.DATE:
                 imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
 
-            annotation = py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
-            annotations.append(annotation)
+            annotations.append(
+                py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+            )
 
         if not annotations:
             annotations.append(py.PASS)
@@ -67,27 +68,40 @@ class Server:
 
     @classmethod
     def model_class(cls, model: Model) -> Code:
+        imports: list[py.Statement] = []
+
+        field_args = []
+        field_attr = []
+
+        for field in model.fields:
+            if field.datatype is Type.DATETIME:
+                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+
+            if field.datatype is Type.DATE:
+                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+
+            field_args.append(
+                py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+            )
+            field_attr.append(
+                py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
+            )
+
         __init__method = py.Def(
             name='__init__',
-            args=py.Args([
-                py.SELF,
-                *[
-                    py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
-                    for field in model.fields
-                ]
-            ]),
-            block=py.Block([
-                py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
-                for field in model.fields
-            ])
+            args=py.Args([py.SELF, *field_args]),
+            block=py.Block(field_attr)
         )
 
-        return py.Class(
-            name=model.name,
-            block=py.Block([
-                __init__method
-            ])
-        )
+        return py.Module([
+            *imports,
+            py.Class(
+                name=model.name,
+                block=py.Block([
+                    __init__method
+                ])
+            )
+        ])
 
 
 class PythonSerializer(Serializer):
@@ -97,7 +111,7 @@ class PythonSerializer(Serializer):
 
     @serialize.register
     def _(self, o: Model) -> str:
-        return str(Server.model_dataclass(o))
+        return str(Server.model_class(o))
 
 
 class JavascriptSerializer(Serializer):
