@@ -5,6 +5,7 @@ from functools import singledispatchmethod
 
 from models.langs import javascript as js
 from models.langs import python as py
+from models.langs import sql
 
 
 class Type(str, Enum):
@@ -96,4 +97,7 @@ class SQLSerializer(Serializer):
 
     @serialize.register
     def _(self, o: Model) -> str:
-        return f"CREATE TABLE {o.name} (" + ");"
+        code = sql.CreateTable(
+            name=o.name
+        )
+        return str(code)
