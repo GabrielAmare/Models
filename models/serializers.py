@@ -34,19 +34,33 @@ _PYTHON_TYPES = {
 class Server:
     @classmethod
     def model_dataclass(cls, model: Model) -> Code:
+        imports: list[py.Statement] = [
+            py.ImportFrom(py.Var("dataclasses"), py.Var("dataclass"))
+        ]
+
+        annotations: list[py.Statement] = []
+
+        for field in model.fields:
+            if field.datatype is Type.DATETIME:
+                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+
+            if field.datatype is Type.DATE:
+                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+
+            annotation = py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+            annotations.append(annotation)
+
+        if not annotations:
+            annotations.append(py.PASS)
+
         return py.Module([
-            py.ImportFrom(py.Var("dataclasses"), py.Var("dataclass")),
+            *imports,
 
             py.Decorator(
                 base=py.Var('dataclass'),
                 over=py.Class(
                     name=model.name,
-                    block=py.Block(
-                        [
-                            py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
-                            for field in model.fields
-                        ] if model.fields else py.PASS
-                    )
+                    block=py.Block(annotations)
                 )
             )
         ])

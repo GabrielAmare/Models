@@ -114,7 +114,7 @@ class Str(Object):
 
 
 @dataclass
-class Typed(Object):
+class Typed(Object, Statement):
     obj: Object
     typ: Var
 
