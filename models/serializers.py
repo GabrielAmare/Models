@@ -4,7 +4,7 @@ from functools import singledispatchmethod
 from models.langs import javascript as js
 from models.langs import python as py
 from models.langs import sql
-from .core import Model
+from .core import Model, Type
 
 __all__ = [
     'Serializer',
@@ -18,6 +18,16 @@ class Serializer(ABC):
     @abstractmethod
     def serialize(self, o) -> str:
         """"""
+
+
+_PYTHON_TYPES = {
+    Type.BOOLEAN: 'bool',
+    Type.INTEGER: 'int',
+    Type.DECIMAL: 'float',
+    Type.STRING: 'str',
+    Type.DATE: 'date',
+    Type.DATETIME: 'datetime',
+}
 
 
 class PythonSerializer(Serializer):
@@ -35,7 +45,7 @@ class PythonSerializer(Serializer):
                     args=py.Args([
                         py.SELF,
                         *[
-                            py.Var(field.name)
+                            py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
                             for field in o.fields
                         ]
                     ]),

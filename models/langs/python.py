@@ -11,6 +11,7 @@ __all__ = [
     'Class',
     'Def',
     'Var',
+    'Str',
     'Args',
     'PASS',
     'CLS',
@@ -94,6 +95,30 @@ class Var(Object):
     def tokens(self) -> list[str]:
         return [
             self.name
+        ]
+
+
+@dataclass
+class Str(Object):
+    value: str
+
+    def tokens(self) -> list[str]:
+        return [
+            repr(self.value)
+        ]
+
+
+@dataclass
+class Typed(Object):
+    obj: Object
+    typ: Var
+
+    def tokens(self) -> list[str]:
+        return [
+            *self.obj.tokens(),
+            Symbols.COLON,
+            Symbols.SPACE,
+            *self.typ.tokens()
         ]
 
 
