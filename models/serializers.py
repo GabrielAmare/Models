@@ -11,7 +11,8 @@ __all__ = [
     'Serializer',
     'PythonSerializer',
     'JavascriptSerializer',
-    'SQLSerializer'
+    'SQLSerializer',
+    'Server'
 ]
 
 
@@ -33,7 +34,7 @@ _PYTHON_TYPES = {
 
 class Server:
     @classmethod
-    def model_dataclass(cls, model: Model) -> Code:
+    def model_dataclass(cls, model: Model) -> py.Module:
         imports: list[py.Statement] = [
             py.ImportFrom(py.Var("dataclasses"), py.Var("dataclass"))
         ]
@@ -67,7 +68,7 @@ class Server:
         ])
 
     @classmethod
-    def model_class(cls, model: Model) -> Code:
+    def model_class(cls, model: Model) -> py.Module:
         imports: list[py.Statement] = []
 
         field_args = []
