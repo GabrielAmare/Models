@@ -4,6 +4,7 @@ from functools import singledispatchmethod
 from models.langs import javascript as js
 from models.langs import python as py
 from models.langs import sql
+from models.langs.base import Code
 from .core import Model, Type
 
 __all__ = [
@@ -30,6 +31,32 @@ _PYTHON_TYPES = {
 }
 
 
+class Server:
+    @classmethod
+    def model_code(cls, model: Model) -> Code:
+        __init__method = py.Def(
+            name='__init__',
+            args=py.Args([
+                py.SELF,
+                *[
+                    py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                    for field in model.fields
+                ]
+            ]),
+            block=py.Block([
+                py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
+                for field in model.fields
+            ])
+        )
+
+        return py.Class(
+            name=model.name,
+            block=py.Block([
+                __init__method
+            ])
+        )
+
+
 class PythonSerializer(Serializer):
     @singledispatchmethod
     def serialize(self, o) -> str:
@@ -37,26 +64,7 @@ class PythonSerializer(Serializer):
 
     @serialize.register
     def _(self, o: Model) -> str:
-        code = py.Class(
-            name=o.name,
-            block=py.Block([
-                py.Def(
-                    name='__init__',
-                    args=py.Args([
-                        py.SELF,
-                        *[
-                            py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
-                            for field in o.fields
-                        ]
-                    ]),
-                    block=py.Block([
-                        py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
-                        for field in o.fields
-                    ])
-                )
-            ])
-        )
-        return str(code)
+        return str(Server.model_code(o))
 
 
 class JavascriptSerializer(Serializer):
