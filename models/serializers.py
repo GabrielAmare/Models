@@ -33,7 +33,26 @@ _PYTHON_TYPES = {
 
 class Server:
     @classmethod
-    def model_code(cls, model: Model) -> Code:
+    def model_dataclass(cls, model: Model) -> Code:
+        return py.Module([
+            py.ImportFrom(py.Var("dataclasses"), py.Var("dataclass")),
+
+            py.Decorator(
+                base=py.Var('dataclass'),
+                over=py.Class(
+                    name=model.name,
+                    block=py.Block(
+                        [
+                            py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                            for field in model.fields
+                        ] if model.fields else py.PASS
+                    )
+                )
+            )
+        ])
+
+    @classmethod
+    def model_class(cls, model: Model) -> Code:
         __init__method = py.Def(
             name='__init__',
             args=py.Args([
@@ -64,7 +83,7 @@ class PythonSerializer(Serializer):
 
     @serialize.register
     def _(self, o: Model) -> str:
-        return str(Server.model_code(o))
+        return str(Server.model_dataclass(o))
 
 
 class JavascriptSerializer(Serializer):

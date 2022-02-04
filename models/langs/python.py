@@ -1,5 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
+from typing import Union
 
 from .base import Code
 
@@ -13,6 +14,8 @@ __all__ = [
     'Var',
     'Str',
     'Args',
+    'ImportFrom',
+    'Module',
     'PASS',
     'CLS',
     'SELF'
@@ -23,6 +26,8 @@ class Keywords:
     CLASS = "class"
     PASS = "pass"
     DEF = "def"
+    IMPORT = "import"
+    FROM = "from"
 
 
 class Symbols:
@@ -35,6 +40,7 @@ class Symbols:
     COMMA = ","
     EQUAL = "="
     DOT = "."
+    AT = "@"
 
 
 class Statement(Code, ABC):
@@ -80,8 +86,7 @@ class Class(Statement):
             Symbols.SPACE,
             self.name,
             Symbols.COLON,
-            *self.block.tokens(),
-            Symbols.NEWLINE
+            *self.block.tokens()
         ]
 
 
@@ -187,6 +192,67 @@ class Getattr(Object):
 class _Pass(Statement):
     def tokens(self) -> list[str]:
         return [Keywords.PASS]
+
+
+@dataclass
+class Decorator(Statement):
+    base: Object
+    over: Union['Decorator', Class, Def]
+
+    def tokens(self) -> list[str]:
+        return [
+            Symbols.AT,
+            *self.base.tokens(),
+            Symbols.NEWLINE,
+            *self.over.tokens()
+        ]
+
+
+@dataclass
+class ImportFrom(Statement):
+    import_: Object
+    from_: Union[Var, Args]
+
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.FROM,
+            Symbols.SPACE,
+            *self.import_.tokens(),
+            Symbols.SPACE,
+            Keywords.IMPORT,
+            Symbols.SPACE,
+            *self.from_.tokens()
+        ]
+
+
+@dataclass
+class Module(Code):
+    statements: list[Statement]
+
+    def tokens(self) -> list[str]:
+        tokens = []
+        imports = []
+        statements = []
+
+        for statement in self.statements:
+            if isinstance(statement, ImportFrom):
+                imports.append(statement)
+            else:
+                statements.append(statement)
+
+        if imports:
+            for statement in imports:
+                tokens.extend(statement.tokens())
+                tokens.append(Symbols.NEWLINE)
+
+            tokens.append(Symbols.NEWLINE)
+            tokens.append(Symbols.NEWLINE)
+
+        for statement in statements:
+            tokens.extend(statement.tokens())
+            tokens.append(Symbols.NEWLINE)
+
+        return tokens
 
 
 PASS = _Pass()
