@@ -4,7 +4,6 @@ from functools import singledispatchmethod
 from models.langs import javascript as js
 from models.langs import python as py
 from models.langs import sql
-from models.langs.base import Code
 from .core import Model, Type
 
 __all__ = [
@@ -102,6 +101,47 @@ class Server:
                     __init__method
                 ])
             )
+        ])
+
+    @classmethod
+    def model_classes(cls, models: list[Model]) -> py.Module:
+        imports: list[py.Statement] = []
+        classes: list[py.Class] = []
+
+        for model in models:
+            field_args = []
+            field_attr = []
+
+            for field in model.fields:
+                if field.datatype is Type.DATETIME:
+                    imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+
+                if field.datatype is Type.DATE:
+                    imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+
+                field_args.append(
+                    py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                )
+                field_attr.append(
+                    py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
+                )
+
+            __init__method = py.Def(
+                name='__init__',
+                args=py.Args([py.SELF, *field_args]),
+                block=py.Block(field_attr)
+            )
+            model_class = py.Class(
+                name=model.name,
+                block=py.Block([
+                    __init__method
+                ])
+            )
+            classes.append(model_class)
+
+        return py.Module([
+            *imports,
+            *classes
         ])
 
 

@@ -245,10 +245,10 @@ class Module(Code):
                 tokens.extend(statement.tokens())
                 tokens.append(Symbols.NEWLINE)
 
-            tokens.append(Symbols.NEWLINE)
-            tokens.append(Symbols.NEWLINE)
-
         for statement in statements:
+            if isinstance(statement, Class):
+                tokens.append(Symbols.NEWLINE)
+                tokens.append(Symbols.NEWLINE)
             tokens.extend(statement.tokens())
             tokens.append(Symbols.NEWLINE)
 
