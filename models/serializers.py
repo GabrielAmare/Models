@@ -54,6 +54,46 @@ def _get_python_type(datatype) -> py.Var:
         raise Exception(f"Mapping DataType -> py.Var not found for {datatype.__class__.__name__!r}!")
 
 
+def _get_sql_type(datatype) -> sql.TypeName:
+    if datatype is dt.BOOLEAN:
+        return sql.TypeName('BOOLEAN')
+    elif datatype is dt.DATE:
+        return sql.TypeName('DATE')
+    elif datatype is dt.TINYBLOB:
+        return sql.TypeName('TINYBLOB')
+    elif datatype is dt.MEDIUMBLOB:
+        return sql.TypeName('MEDIUMBLOB')
+    elif datatype is dt.LONGBLOB:
+        return sql.TypeName('LONGBLOB')
+    elif datatype is dt.TINYTEXT:
+        return sql.TypeName('TINYTEXT')
+    elif datatype is dt.MEDIUMTEXT:
+        return sql.TypeName('MEDIUMTEXT')
+    elif datatype is dt.LONGTEXT:
+        return sql.TypeName('LONGTEXT')
+
+    elif isinstance(datatype, (dt.BIT, dt.TINYINT, dt.SMALLINT, dt.MEDIUMINT, dt.INTEGER, dt.BIGINT)):
+        return sql.TypeName(datatype.__class__.__name__, [str(datatype.size)])
+
+    elif isinstance(datatype, (dt.FLOAT, dt.DOUBLE, dt.DECIMAL)):
+        return sql.TypeName(datatype.__class__.__name__, [str(datatype.size)])
+
+    elif isinstance(datatype, (dt.DATETIME, dt.TIME, dt.TIMESTAMP)):
+        return sql.TypeName(datatype.__class__.__name__, [str(datatype.fsp)])
+
+    elif isinstance(datatype, (dt.BINARY, dt.VARBINARY, dt.BLOB)):
+        return sql.TypeName(datatype.__class__.__name__, [str(datatype.size)])
+
+    elif isinstance(datatype, (dt.CHAR, dt.VARCHAR, dt.TEXT)):
+        return sql.TypeName(datatype.__class__.__name__, [str(datatype.size)])
+
+    elif isinstance(datatype, (dt.ENUM, dt.SET)):
+        return sql.TypeName(datatype.__class__.__name__, list(map(str, datatype.values)))
+
+    else:
+        raise Exception(f"Mapping DataType -> sql.TypeName not found for {datatype.__class__.__name__!r}!")
+
+
 class Server:
     @classmethod
     def model_dataclass(cls, model: Model) -> py.Module:
@@ -212,6 +252,14 @@ class SQLSerializer(Serializer):
     @serialize.register
     def _(self, o: Model) -> str:
         code = sql.CreateTable(
-            name=o.name
+            name=o.name,
+            if_not_exists=True,
+            columns=[
+                sql.ColumnDefinition(
+                    name=field.name,
+                    datatype=_get_sql_type(field.datatype)
+                )
+                for field in o.fields
+            ]
         )
         return str(code)
