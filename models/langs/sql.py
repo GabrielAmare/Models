@@ -28,6 +28,7 @@ class Keywords:
     AUTOINCREMENT = "AUTOINCREMENT"
     NOT = "NOT"
     NULL = "NULL"
+    UNIQUE = "UNIQUE"
 
 
 class Symbols:
@@ -129,6 +130,32 @@ class NotNull(ColumnConstraint):
             Keywords.NOT,
             Symbols.SPACE,
             Keywords.NULL,
+            Symbols.SPACE
+        ])
+
+        tokens.extend(self.conflict_clause.tokens())
+
+        return tokens
+
+
+@dataclass
+class Unique(ColumnConstraint):
+    conflict_clause: ConflictClause
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.UNIQUE,
             Symbols.SPACE
         ])
 
