@@ -2,6 +2,7 @@
     Useful references :
         - https://www.sqlite.org/syntaxdiagrams.html
 """
+from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Union
@@ -15,6 +16,13 @@ __all__ = [
     'ColumnConstraint',
     'PrimaryKey',
     'NotNull',
+    'Unique',
+    'Check',
+    'Default',
+    'Collate',
+    'Action',
+    'ForeignKeyClause',
+    'Generated',
     'ColumnDefinition'
 ]
 
@@ -37,6 +45,16 @@ class Keywords:
     AS = "AS"
     STORED = "STORED"
     VIRTUAL = "VIRTUAL"
+    REFERENCES = "REFERENCES"
+    SET = "SET"
+    CASCADE = "CASCADE"
+    RESTRICT = "RESTRICT"
+    NO = "NO"
+    ACTION = "ACTION"
+    ON = "ON"
+    DELETE = "DELETE"
+    UPDATE = "UPDATE"
+    MATCH = "MATCH"
 
 
 class Symbols:
@@ -255,6 +273,123 @@ class Collate(ColumnConstraint):
             Keywords.COLLATE,
             *self.collation_name.tokens()
         ])
+
+        return tokens
+
+
+class _Action(ABC, Code):
+    ...
+
+
+class _SetNull(_Action):
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.SET,
+            Symbols.SPACE,
+            Keywords.NULL
+        ]
+
+
+class _SetDefault(_Action):
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.SET,
+            Symbols.SPACE,
+            Keywords.DEFAULT
+        ]
+
+
+class _Cascade(_Action):
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.CASCADE
+        ]
+
+
+class _Restrict(_Action):
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.RESTRICT
+        ]
+
+
+class _NoAction(_Action):
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.NO,
+            Symbols.SPACE,
+            Keywords.ACTION
+        ]
+
+
+class Action:
+    SET_NULL = _SetNull()
+    SET_DEFAULT = _SetDefault()
+    CASCADE = _Cascade()
+    RESTRICT = _Restrict()
+    NO_ACTION = _NoAction()
+
+
+@dataclass
+class ForeignKeyClause(ColumnConstraint):
+    foreign_table: str
+    column_names: list[str] = field(default_factory=list)
+    on_delete: Optional[_Action] = None
+    on_update: Optional[_Action] = None
+    match_name: Optional[str] = None
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = [
+            Keywords.REFERENCES,
+            Symbols.SPACE,
+            self.foreign_table,
+            Symbols.SPACE,
+        ]
+
+        if self.column_names:
+            tokens.append(Symbols.LP)
+
+            for index, column_name in enumerate(self.column_names):
+                if index:
+                    tokens.extend([
+                        Symbols.COMMA,
+                        Symbols.SPACE
+                    ])
+
+                tokens.append(column_name)
+
+            tokens.append(Symbols.RP)
+
+        if self.on_delete:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.ON,
+                Symbols.SPACE,
+                Keywords.DELETE,
+                Symbols.SPACE,
+                *self.on_delete.tokens()
+            ])
+
+        if self.on_update:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.ON,
+                Symbols.SPACE,
+                Keywords.UPDATE,
+                Symbols.SPACE,
+                *self.on_update.tokens()
+            ])
+
+        if self.match_name:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.MATCH,
+                Symbols.SPACE,
+                self.match_name
+            ])
+
+        # TODO : include 'DEFERRABLE' part.
 
         return tokens
 
