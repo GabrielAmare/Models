@@ -13,7 +13,8 @@ __all__ = [
     'Symbols',
     'CreateTable',
     'ColumnConstraint',
-    'PrimaryKey'
+    'PrimaryKey',
+    'ColumnDefinition'
 ]
 
 
@@ -101,5 +102,28 @@ class PrimaryKey(ColumnConstraint):
                 Symbols.SPACE,
                 Keywords.AUTOINCREMENT
             ])
+
+        return tokens
+
+
+@dataclass
+class ColumnDefinition(Code):
+    name: str
+    datatype: Optional[str] = None
+    constraints: list[ColumnConstraint] = field(default_factory=list)
+
+    def tokens(self) -> list[str]:
+        tokens = [
+            self.name
+        ]
+
+        if self.datatype:
+            tokens.append(Symbols.SPACE)
+            tokens.append(self.datatype)
+
+        if self.constraints:
+            for constraint in self.constraints:
+                tokens.append(Symbols.SPACE)
+                tokens.extend(constraint.tokens())
 
         return tokens
