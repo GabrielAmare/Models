@@ -32,6 +32,11 @@ class Keywords:
     CHECK = "CHECK"
     DEFAULT = "DEFAULT"
     COLLATE = "COLLATE"
+    GENERATED = "GENERATED"
+    ALWAYS = "ALWAYS"
+    AS = "AS"
+    STORED = "STORED"
+    VIRTUAL = "VIRTUAL"
 
 
 class Symbols:
@@ -250,6 +255,50 @@ class Collate(ColumnConstraint):
             Keywords.COLLATE,
             *self.collation_name.tokens()
         ])
+
+        return tokens
+
+
+@dataclass
+class Generated(ColumnConstraint):
+    expr: Expression
+    always: bool = False
+    stored: bool = False
+    virtual: bool = False
+    name: Optional[str] = None
+
+    def __post_init__(self):
+        assert not (self.stored and self.virtual), "A field can't be STORED and VIRTUAL"
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.always:
+            tokens.extend([
+                Keywords.GENERATED,
+                Symbols.SPACE,
+                Keywords.ALWAYS,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.AS,
+            Symbols.LP,
+            *self.expr.tokens(),
+            Symbols.RP
+        ])
+
+        if self.stored:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.STORED
+            ])
+
+        elif self.virtual:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.VIRTUAL
+            ])
 
         return tokens
 
