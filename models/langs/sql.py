@@ -503,9 +503,35 @@ class Generated(ColumnConstraint):
 
 
 @dataclass
+class TypeName(Code):
+    name: str
+    args: list[str] = field(default_factory=list)
+
+    def tokens(self) -> list[str]:
+        tokens = [
+            self.name
+        ]
+
+        if self.args:
+            tokens.append(Symbols.LP)
+
+            for index, arg in enumerate(self.args):
+                if index:
+                    tokens.extend([
+                        Symbols.COMMA,
+                        Symbols.SPACE
+                    ])
+                tokens.append(arg)
+
+            tokens.append(Symbols.RP)
+
+        return tokens
+
+
+@dataclass
 class ColumnDefinition(Code):
     name: str
-    datatype: Optional[str] = None
+    datatype: Optional[TypeName] = None
     constraints: list[ColumnConstraint] = field(default_factory=list)
 
     def tokens(self) -> list[str]:
@@ -514,8 +540,10 @@ class ColumnDefinition(Code):
         ]
 
         if self.datatype:
-            tokens.append(Symbols.SPACE)
-            tokens.append(self.datatype)
+            tokens.extend([
+                Symbols.SPACE,
+                *self.datatype.tokens()
+            ])
 
         if self.constraints:
             for constraint in self.constraints:
