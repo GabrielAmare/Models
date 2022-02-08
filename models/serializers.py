@@ -1,10 +1,11 @@
 from abc import abstractmethod, ABC
 from functools import singledispatchmethod
 
+from models import datatypes as dt
 from models.langs import javascript as js
 from models.langs import python as py
 from models.langs import sql
-from .core import Model, Type
+from .core import Model
 
 __all__ = [
     'Serializer',
@@ -21,34 +22,56 @@ class Serializer(ABC):
         """"""
 
 
-_PYTHON_TYPES = {
-    Type.BOOLEAN: 'bool',
-    Type.INTEGER: 'int',
-    Type.DECIMAL: 'float',
-    Type.STRING: 'str',
-    Type.DATE: 'date',
-    Type.DATETIME: 'datetime',
-}
+def _get_python_type(datatype) -> py.Var:
+    if datatype is dt.BOOLEAN:
+        return py.Var('bool')
+
+    elif datatype is dt.DATE:
+        return py.DATE
+
+    elif datatype in (dt.TINYBLOB, dt.MEDIUMBLOB, dt.LONGBLOB):
+        return py.Var('bytes')
+
+    elif datatype in (dt.TINYTEXT, dt.MEDIUMTEXT, dt.LONGTEXT):
+        return py.Var('str')
+
+    elif isinstance(datatype, (dt.BIT, dt.TINYINT, dt.SMALLINT, dt.MEDIUMINT, dt.INTEGER, dt.BIGINT)):
+        return py.Var('int')
+
+    elif isinstance(datatype, (dt.FLOAT, dt.DOUBLE, dt.DECIMAL)):
+        return py.Var('float')
+
+    elif isinstance(datatype, dt.DATETIME):
+        return py.DATETIME
+
+    elif isinstance(datatype, (dt.BINARY, dt.VARBINARY, dt.BLOB)):
+        return py.Var('bytes')
+
+    elif isinstance(datatype, (dt.CHAR, dt.VARCHAR, dt.TEXT, dt.ENUM, dt.SET)):
+        return py.Var('str')
+
+    else:
+        raise Exception(f"Mapping DataType -> py.Var not found for {datatype.__class__.__name__!r}!")
 
 
 class Server:
     @classmethod
     def model_dataclass(cls, model: Model) -> py.Module:
         imports: list[py.Statement] = [
-            py.ImportFrom(py.Var("dataclasses"), py.Var("dataclass"))
+            py.DATACLASS.import_info
         ]
 
         annotations: list[py.Statement] = []
 
         for field in model.fields:
-            if field.datatype is Type.DATETIME:
-                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+            if isinstance(field.datatype, dt.DATETIME):
+                imports.append(py.DATETIME.import_info)
 
-            if field.datatype is Type.DATE:
-                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+            if field.datatype is dt.DATE:
+                imports.append(py.DATE.import_info)
 
             annotations.append(
-                py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                py.Typed(py.Var(field.name), _get_python_type(field.datatype))
             )
 
         if not annotations:
@@ -58,7 +81,7 @@ class Server:
             *imports,
 
             py.Decorator(
-                base=py.Var('dataclass'),
+                base=py.DATACLASS,
                 over=py.Class(
                     name=model.name,
                     block=py.Block(annotations)
@@ -74,14 +97,14 @@ class Server:
         field_attr = []
 
         for field in model.fields:
-            if field.datatype is Type.DATETIME:
-                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+            if isinstance(field.datatype, dt.DATETIME):
+                imports.append(py.DATETIME.import_info)
 
-            if field.datatype is Type.DATE:
-                imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+            if field.datatype is dt.DATE:
+                imports.append(py.DATE.import_info)
 
             field_args.append(
-                py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                py.Typed(py.Var(field.name), _get_python_type(field.datatype))
             )
             field_attr.append(
                 py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
@@ -113,14 +136,14 @@ class Server:
             field_attr = []
 
             for field in model.fields:
-                if field.datatype is Type.DATETIME:
-                    imports.append(py.ImportFrom(py.Var("datetime"), py.Var("datetime")))
+                if isinstance(field.datatype, dt.DATETIME):
+                    imports.append(py.DATETIME.import_info)
 
-                if field.datatype is Type.DATE:
-                    imports.append(py.ImportFrom(py.Var("datetime"), py.Var("date")))
+                if field.datatype is dt.DATE:
+                    imports.append(py.DATE.import_info)
 
                 field_args.append(
-                    py.Typed(py.Var(field.name), py.Var(_PYTHON_TYPES[field.datatype]))
+                    py.Typed(py.Var(field.name), _get_python_type(field.datatype))
                 )
                 field_attr.append(
                     py.Assign(py.Getattr(py.SELF, py.Var(field.name)), py.Var(field.name))
