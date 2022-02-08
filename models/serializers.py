@@ -260,6 +260,7 @@ class SQLSerializer(Serializer):
                     datatype=_get_sql_type(field.datatype)
                 )
                 for field in o.fields
-            ]
+            ],
+            cfg_expand=True
         )
         return str(code)
