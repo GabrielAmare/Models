@@ -70,6 +70,7 @@ class Symbols:
     LP = "("
     RP = ")"
     DOT = "."
+    INDENT = "    "
 
 
 @dataclass
@@ -80,6 +81,7 @@ class CreateTable(Code):
     temporary: bool = False
     schema_name: Optional[str] = None
     select_stmt: Optional[SelectStatement] = None
+    cfg_expand: bool = False
 
     def tokens(self) -> list[str]:
         tokens = [
@@ -125,7 +127,7 @@ class CreateTable(Code):
                 Symbols.SPACE,
                 *self.select_stmt.tokens()
             ])
-        
+
         else:
             tokens.append(Symbols.LP)
 
@@ -136,9 +138,15 @@ class CreateTable(Code):
                         Symbols.SPACE
                     ])
 
+                if self.cfg_expand:
+                    tokens.extend([Symbols.NEWLINE, Symbols.INDENT])
+
                 tokens.extend(column_def.tokens())
 
             # TODO : add 'table-constraint' part.
+
+            if self.cfg_expand:
+                tokens.append(Symbols.NEWLINE)
 
             tokens.append(Symbols.RP)
 
