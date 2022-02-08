@@ -4,7 +4,7 @@
 """
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 from .base import Code
 
@@ -30,6 +30,7 @@ class Keywords:
     NULL = "NULL"
     UNIQUE = "UNIQUE"
     CHECK = "CHECK"
+    DEFAULT = "DEFAULT"
 
 
 class Symbols:
@@ -187,6 +188,43 @@ class Check(ColumnConstraint):
             *self.expr.tokens(),
             Symbols.RP
         ])
+
+        return tokens
+
+
+@dataclass
+class Default(ColumnConstraint):
+    expr: Union[Expression, LiteralValue, SignedNumber]
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.DEFAULT,
+        ])
+
+        if isinstance(self.expr, Expression):
+            tokens.extend([
+                Symbols.LP,
+                *self.expr.tokens(),
+                Symbols.RP
+            ])
+        elif isinstance(self.expr, (LiteralValue, SignedNumber)):
+            tokens.extend([
+                Symbols.SPACE,
+                *self.expr.tokens()
+            ])
+        else:
+            raise Exception
 
         return tokens
 
