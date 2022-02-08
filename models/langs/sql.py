@@ -31,6 +31,7 @@ class Keywords:
     UNIQUE = "UNIQUE"
     CHECK = "CHECK"
     DEFAULT = "DEFAULT"
+    COLLATE = "COLLATE"
 
 
 class Symbols:
@@ -225,6 +226,30 @@ class Default(ColumnConstraint):
             ])
         else:
             raise Exception
+
+        return tokens
+
+
+@dataclass
+class Collate(ColumnConstraint):
+    collation_name: CollationName
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.COLLATE,
+            *self.collation_name.tokens()
+        ])
 
         return tokens
 
