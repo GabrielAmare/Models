@@ -1,6 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Optional
 
 from .base import Code
 
@@ -91,8 +91,26 @@ class Class(Statement):
 
 
 @dataclass
+class ImportFrom(Statement):
+    import_: Object
+    from_: Union[Var, Args]
+
+    def tokens(self) -> list[str]:
+        return [
+            Keywords.FROM,
+            Symbols.SPACE,
+            *self.import_.tokens(),
+            Symbols.SPACE,
+            Keywords.IMPORT,
+            Symbols.SPACE,
+            *self.from_.tokens()
+        ]
+
+
+@dataclass
 class Var(Object):
     name: str
+    import_info: Optional[ImportFrom] = None
 
     def __post_init__(self):
         assert self.name.isidentifier()
@@ -209,23 +227,6 @@ class Decorator(Statement):
 
 
 @dataclass
-class ImportFrom(Statement):
-    import_: Object
-    from_: Union[Var, Args]
-
-    def tokens(self) -> list[str]:
-        return [
-            Keywords.FROM,
-            Symbols.SPACE,
-            *self.import_.tokens(),
-            Symbols.SPACE,
-            Keywords.IMPORT,
-            Symbols.SPACE,
-            *self.from_.tokens()
-        ]
-
-
-@dataclass
 class Module(Code):
     statements: list[Statement]
 
@@ -263,3 +264,6 @@ PASS = _Pass()
 
 CLS = Var('cls')
 SELF = Var('self')
+
+
+DATACLASS = Var('dataclass', import_info=ImportFrom(Var('dataclasses'), Var('dataclass')))
