@@ -29,6 +29,7 @@ class Keywords:
     NOT = "NOT"
     NULL = "NULL"
     UNIQUE = "UNIQUE"
+    CHECK = "CHECK"
 
 
 class Symbols:
@@ -160,6 +161,32 @@ class Unique(ColumnConstraint):
         ])
 
         tokens.extend(self.conflict_clause.tokens())
+
+        return tokens
+
+
+@dataclass
+class Check(ColumnConstraint):
+    expr: Expression
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.CHECK,
+            Symbols.LP,
+            *self.expr.tokens(),
+            Symbols.RP
+        ])
 
         return tokens
 
