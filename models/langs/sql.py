@@ -2,6 +2,8 @@
     Useful references :
         - https://www.sqlite.org/syntaxdiagrams.html
 """
+from __future__ import annotations
+
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
@@ -55,6 +57,9 @@ class Keywords:
     DELETE = "DELETE"
     UPDATE = "UPDATE"
     MATCH = "MATCH"
+    TEMPORARY = "TEMPORARY"
+    IF = "IF"
+    EXISTS = "EXISTS"
 
 
 class Symbols:
@@ -64,28 +69,87 @@ class Symbols:
     COMMA = ","
     LP = "("
     RP = ")"
+    DOT = "."
 
 
 @dataclass
 class CreateTable(Code):
     name: str
+    columns: list[ColumnDefinition] = field(default_factory=list)
+    if_not_exists: bool = False
+    temporary: bool = False
+    schema_name: Optional[str] = None
+    select_stmt: Optional[SelectStatement] = None
 
     def tokens(self) -> list[str]:
-        return [
+        tokens = [
             Keywords.CREATE,
-            Symbols.SPACE,
-            Keywords.TABLE,
-            Symbols.SPACE,
-            self.name,
-            Symbols.SPACE,
-            Symbols.LP,
-            # TODO : add fields
-            Symbols.RP,
-            Symbols.SEMICOLON
+            Symbols.SPACE
         ]
 
+        if self.temporary:
+            tokens.extend([
+                Keywords.TEMPORARY,
+                Symbols.SPACE
+            ])
 
-class ColumnConstraint(Code):
+        tokens.extend([
+            Keywords.TABLE,
+            Symbols.SPACE
+        ])
+
+        if self.if_not_exists:
+            tokens.extend([
+                Keywords.IF,
+                Symbols.SPACE,
+                Keywords.NOT,
+                Symbols.SPACE,
+                Keywords.EXISTS,
+                Symbols.SPACE
+            ])
+
+        if self.schema_name:
+            tokens.extend([
+                self.schema_name,
+                Symbols.DOT
+            ])
+
+        tokens.extend([
+            self.name,
+            Symbols.SPACE
+        ])
+
+        if self.select_stmt:
+            tokens.extend([
+                Keywords.AS,
+                Symbols.SPACE,
+                *self.select_stmt.tokens()
+            ])
+        
+        else:
+            tokens.append(Symbols.LP)
+
+            for index, column_def in enumerate(self.columns):
+                if index:
+                    tokens.extend([
+                        Symbols.COMMA,
+                        Symbols.SPACE
+                    ])
+
+                tokens.extend(column_def.tokens())
+
+            # TODO : add 'table-constraint' part.
+
+            tokens.append(Symbols.RP)
+
+            # TODO : add 'table-option' part.
+
+        tokens.append(Symbols.SEMICOLON)
+
+        return tokens
+
+
+class ColumnConstraint(Code, ABC):
     ...
 
 
@@ -277,7 +341,7 @@ class Collate(ColumnConstraint):
         return tokens
 
 
-class _Action(ABC, Code):
+class _Action(Code, ABC):
     ...
 
 
