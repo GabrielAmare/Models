@@ -20,7 +20,10 @@ __all__ = [
     'Module',
     'PASS',
     'CLS',
-    'SELF'
+    'SELF',
+    'DATACLASS',
+    'DATE',
+    'DATETIME'
 ]
 
 
@@ -267,5 +270,6 @@ PASS = _Pass()
 CLS = Var('cls')
 SELF = Var('self')
 
-
 DATACLASS = Var('dataclass', import_info=ImportFrom(Var('dataclasses'), Var('dataclass')))
+DATE = Var('date', import_info=ImportFrom(Var('datetime'), Var('date')))
+DATETIME = Var('datetime', import_info=ImportFrom(Var('datetime'), Var('datetime')))
