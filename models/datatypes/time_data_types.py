@@ -39,7 +39,7 @@ class DATETIME(TimeDataType):
         Adding DEFAULT and ON UPDATE in the column definition to get
             automatic initialization and updating to the current date and time
     """
-    fsp: object
+    fsp: int
 
 
 @dataclass
@@ -53,7 +53,7 @@ class TIMESTAMP(TimeDataType):
             Automatic initialization and updating to the current date and time can be specified using
                 DEFAULT CURRENT_TIMESTAMP and ON UPDATE CURRENT_TIMESTAMP in the column definition
     """
-    fsp: object
+    fsp: int
 
 
 @dataclass
@@ -64,7 +64,7 @@ class TIME(TimeDataType):
             Format: hh:mm:ss.
             The supported range is from '-838:59:59' to '838:59:59'
     """
-    fsp: object
+    fsp: int
 
 
 @dataclass
