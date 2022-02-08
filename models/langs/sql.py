@@ -14,6 +14,7 @@ __all__ = [
     'CreateTable',
     'ColumnConstraint',
     'PrimaryKey',
+    'NotNull',
     'ColumnDefinition'
 ]
 
@@ -25,6 +26,8 @@ class Keywords:
     PRIMARY = "PRIMARY"
     KEY = "KEY"
     AUTOINCREMENT = "AUTOINCREMENT"
+    NOT = "NOT"
+    NULL = "NULL"
 
 
 class Symbols:
@@ -102,6 +105,34 @@ class PrimaryKey(ColumnConstraint):
                 Symbols.SPACE,
                 Keywords.AUTOINCREMENT
             ])
+
+        return tokens
+
+
+@dataclass
+class NotNull(ColumnConstraint):
+    conflict_clause: ConflictClause
+    name: Optional[str] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.NOT,
+            Symbols.SPACE,
+            Keywords.NULL,
+            Symbols.SPACE
+        ])
+
+        tokens.extend(self.conflict_clause.tokens())
 
         return tokens
 
