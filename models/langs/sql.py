@@ -1,13 +1,29 @@
-from dataclasses import dataclass
+"""
+    Useful references :
+        - https://www.sqlite.org/syntaxdiagrams.html
+"""
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
 
 from .base import Code
 
-__all__ = ['Keywords', 'Symbols', 'CreateTable']
+__all__ = [
+    'Keywords',
+    'Symbols',
+    'CreateTable',
+    'ColumnConstraint',
+    'PrimaryKey'
+]
 
 
 class Keywords:
     CREATE = "CREATE"
     TABLE = "TABLE"
+    CONSTRAINT = "CONSTRAINT"
+    PRIMARY = "PRIMARY"
+    KEY = "KEY"
+    AUTOINCREMENT = "AUTOINCREMENT"
 
 
 class Symbols:
@@ -36,3 +52,54 @@ class CreateTable(Code):
             Symbols.RP,
             Symbols.SEMICOLON
         ]
+
+
+class ColumnConstraint(Code):
+    ...
+
+
+class Order(str, Enum):
+    ASC = "ASC"
+    DESC = "DESC"
+
+
+@dataclass
+class PrimaryKey(ColumnConstraint):
+    conflict_clause: ConflictClause
+    auto_increment: bool = False
+    name: Optional[str] = None
+    order: Optional[Order] = None
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        if self.name:
+            tokens.extend([
+                Keywords.CONSTRAINT,
+                Symbols.SPACE,
+                self.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend([
+            Keywords.PRIMARY,
+            Symbols.SPACE,
+            Keywords.KEY,
+            Symbols.SPACE
+        ])
+
+        if self.order:
+            tokens.extend([
+                self.order.name,
+                Symbols.SPACE
+            ])
+
+        tokens.extend(self.conflict_clause.tokens())
+
+        if self.auto_increment:
+            tokens.extend([
+                Symbols.SPACE,
+                Keywords.AUTOINCREMENT
+            ])
+
+        return tokens
