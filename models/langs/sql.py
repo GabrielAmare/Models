@@ -25,7 +25,8 @@ __all__ = [
     'Action',
     'ForeignKeyClause',
     'Generated',
-    'ColumnDefinition'
+    'ColumnDefinition',
+    'Commands'
 ]
 
 
@@ -73,8 +74,12 @@ class Symbols:
     INDENT = "    "
 
 
+class Statement(Code, ABC):
+    ...
+
+
 @dataclass
-class CreateTable(Code):
+class CreateTable(Statement):
     name: str
     columns: list[ColumnDefinition] = field(default_factory=list)
     if_not_exists: bool = False
@@ -557,5 +562,21 @@ class ColumnDefinition(Code):
             for constraint in self.constraints:
                 tokens.append(Symbols.SPACE)
                 tokens.extend(constraint.tokens())
+
+        return tokens
+
+
+@dataclass
+class Commands(Code):
+    statements: list[Statement]
+
+    def tokens(self) -> list[str]:
+        tokens = []
+
+        for index, statement in enumerate(self.statements):
+            if index:
+                tokens.append(Symbols.NEWLINE)
+
+            tokens.extend(statement.tokens())
 
         return tokens
