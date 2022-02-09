@@ -1,3 +1,4 @@
+import re
 from abc import abstractmethod, ABC
 from functools import singledispatchmethod
 
@@ -12,7 +13,9 @@ __all__ = [
     'PythonSerializer',
     'JavascriptSerializer',
     'SQLSerializer',
-    'Server'
+    'Server',
+    'Database',
+    'Case'
 ]
 
 
@@ -244,6 +247,33 @@ class JavascriptSerializer(Serializer):
         return str(code)
 
 
+class Database:
+    @classmethod
+    def model_command(cls, model: Model) -> sql.CreateTable:
+        assert Case.is_pascal_case(model.name)
+        name = Case.join_snake(Case.split_pascal(model.name))
+
+        return sql.CreateTable(
+            name=name,
+            if_not_exists=True,
+            columns=[
+                sql.ColumnDefinition(
+                    name=field.name,
+                    datatype=_get_sql_type(field.datatype)
+                )
+                for field in model.fields
+            ],
+            cfg_expand=True
+        )
+
+    @classmethod
+    def model_commands(cls, models: list[Model]) -> sql.Commands:
+        return sql.Commands([
+            cls.model_command(model)
+            for model in models
+        ])
+
+
 class SQLSerializer(Serializer):
     @singledispatchmethod
     def serialize(self, o) -> str:
@@ -251,16 +281,109 @@ class SQLSerializer(Serializer):
 
     @serialize.register
     def _(self, o: Model) -> str:
-        code = sql.CreateTable(
-            name=o.name,
-            if_not_exists=True,
-            columns=[
-                sql.ColumnDefinition(
-                    name=field.name,
-                    datatype=_get_sql_type(field.datatype)
-                )
-                for field in o.fields
-            ],
-            cfg_expand=True
-        )
-        return str(code)
+        return str(Database.model_command(o))
+
+
+class Case:
+    _CAMEL = re.compile(r"^[a-z]+(?:[A-Z][a-z]*)+$")
+    _PASCAL = re.compile(r"^(?:[A-Z][a-z]*)+$")
+    _SNAKE = re.compile(r"^[a-z]+(?:_[a-z]+)*$")
+    _KEBAB = re.compile(r"^[a-z]+](?:-[a-z]+)*$")
+    _UPPER = re.compile(r"^[A-Z]+](?:_[A-Z]+)*$")
+
+    @classmethod
+    def is_camel_case(cls, text: str) -> bool:
+        return bool(cls._CAMEL.match(text))
+
+    @classmethod
+    def is_pascal_case(cls, text: str) -> bool:
+        return bool(cls._PASCAL.match(text))
+
+    @classmethod
+    def is_snake_case(cls, text: str) -> bool:
+        return bool(cls._SNAKE.match(text))
+
+    @classmethod
+    def is_kebab_case(cls, text: str) -> bool:
+        return bool(cls._KEBAB.match(text))
+
+    @classmethod
+    def is_upper_case(cls, text: str) -> bool:
+        return bool(cls._UPPER.match(text))
+
+    @classmethod
+    def split_camel(cls, text: str) -> list[str]:
+        assert cls.is_camel_case(text)
+        args = []
+        arg = ''
+        for char in text:
+            if char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ':
+                args.append(arg.lower())
+                arg = char
+            else:
+                arg += char
+
+        if arg:
+            args.append(arg.lower())
+
+        return args
+
+    @classmethod
+    def split_pascal(cls, text: str) -> list[str]:
+        assert cls.is_pascal_case(text)
+        args = []
+        arg = ''
+        for char in text:
+            if char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and arg:
+                args.append(arg.lower())
+                arg = char
+            else:
+                arg += char
+
+        if arg:
+            args.append(arg.lower())
+
+        return args
+
+    @classmethod
+    def split_snake(cls, text: str) -> list[str]:
+        assert cls.is_snake_case(text)
+        return text.split('_')
+
+    @classmethod
+    def split_kebab(cls, text: str) -> list[str]:
+        assert cls.is_kebab_case(text)
+        return text.split('-')
+
+    @classmethod
+    def split_upper(cls, text: str) -> list[str]:
+        assert cls.is_upper_case(text)
+        return text.lower().split('_')
+
+    @classmethod
+    def join_camel(cls, parts: list[str]) -> str:
+        text = ""
+
+        for index, part in enumerate(parts):
+            if index:
+                text += part.capitalize()
+            else:
+                text += part
+
+        return text
+
+    @classmethod
+    def join_pascal(cls, parts: list[str]) -> str:
+        return "".join(map(str.capitalize, parts))
+
+    @classmethod
+    def join_snake(cls, parts: list[str]) -> str:
+        return "_".join(parts)
+
+    @classmethod
+    def join_kebab(cls, parts: list[str]) -> str:
+        return "_".join(parts)
+
+    @classmethod
+    def join_upper(cls, parts: list[str]) -> str:
+        return "_".join(map(str.upper, parts))
