@@ -580,3 +580,7 @@ class Commands(Code):
             tokens.extend(statement.tokens())
 
         return tokens
+
+    def save_to(self, dst: str) -> None:
+        with open(dst, mode="w", encoding="utf-8") as file:
+            file.write(str(self))
